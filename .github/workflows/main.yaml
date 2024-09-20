@@ -1,122 +1,23 @@
-name : Main pipeline
+name: Main pipeline
+
 on:
+  pull_request: 
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - ci/create-rpm-package
-  pull_request:
-env:
-  os: RHEL
-  os_version: 93
+    inputs:
+      version:
+        description: 'Version of package'
+        type: string
+        required: true
+      release:
+        description: 'The release number'
+        required: false
+        type: number
+        default: 1
+      
 jobs:
-  parsing:
-    runs-on: ubuntu-latest
-    outputs:
-      compvers: ${{ steps.params.outputs.compvers }}
-      compname: ${{ steps.params.outputs.compname }}
-      comparch: ${{ steps.params.outputs.comparch }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-tags: 'true'
-      
-      - name: Parse alumet version
-        id: params
-        run: |
-          compvers=$(awk '/Version/ { print $2 }' ./specs/alumet.spec)
-          compname=$(awk '/Name/ { print $2 }' ./specs/alumet.spec)
-          comparch=$(awk '/BuildArch/ { print $2 }' ./specs/alumet.spec)
-          
-          echo "compvers=$compvers" >> $GITHUB_OUTPUT
-          echo "compname=$compname" >> $GITHUB_OUTPUT
-          echo "comparch=$comparch" >> $GITHUB_OUTPUT
-
-          echo "Pipeline will build [$compname] in version [$compvers] for the architecture [$comparch]" >> $GITHUB_STEP_SUMMARY
-
-  packaging:
-    runs-on: ubuntu-latest
-    needs:
-      - parsing
-    env:
-      name: ${{ needs.parsing.outputs.compname }}
-      compvers: ${{ needs.parsing.outputs.compvers }}
-      arch: ${{ needs.parsing.outputs.comparch }}
-    container:
-      image: fedora:40
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install RPM
-        run: |
-          sudo dnf install rust cargo -y -v
-          export PATH=$PATH:$HOME/.cargo/bin/
-          sudo dnf install rpm-build rpmdevtools -y -v
-          sudo dnf install cargo-rpm-macros -y -v
-          cargo install cargo-lock2rpmprovides
-          PROTOC_ZIP=protoc-28.0-linux-x86_64.zip
-          curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v28.0/$PROTOC_ZIP
-          sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
-          sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
-          rm -f $PROTOC_ZIP
-          
-      - name: Setup for alumet
-        run: |
-          mkdir -p alumet
-
-      - name: Checkout alumet
-        uses: actions/checkout@v4
-        with:
-            repository: alumet-dev/alumet
-            path: "alumet"
-            
-
-      - name: get Spec settings
-        id: get-spec-settings
-        env:
-          build_dir: "$(pwd)/build"
-        run: |
-          mkdir -p ${{ env.build_dir }}/SOURCES
-          tar --exclude=".[^/]*" --exclude="./build" --transform 's|.|alumet|' -zcvf ${{ env.build_dir }}/SOURCES/alumet.tar.gz .
-          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{env.os}}${{env.os_version}}" specs/alumet.spec
-          ls -al ./build/RPMS/${{ env.arch }}/
-
-      - name: Upload artifact local agent
-        uses: actions/upload-artifact@v4
-        with:
-          name: alumet-local-agent-${{ env.name }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-          path: |
-            ./build/RPMS/${{ env.arch }}/${{ env.name }}-alumet-local-agent-${{ env.compvers }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-      
-      - name: Upload artifact relay client
-        uses: actions/upload-artifact@v4
-        with:
-          name: alumet-relay-client-${{ env.name }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-          path: |          
-            ./build/RPMS/${{ env.arch }}/${{ env.name }}-alumet-relay-client-${{ env.compvers }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-
-      - name: Upload artifact relay server
-        uses: actions/upload-artifact@v4
-        with:
-          name: alumet-relay-server-${{ env.name }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-          path: |
-            ./build/RPMS/${{ env.arch }}/${{ env.name }}-alumet-relay-server-${{ env.compvers }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-  
-  # publish:
-  #   runs-on: ubuntu-latest
-  #   needs:
-  #     - packaging
-  #   env:
-  #     name: ${{ needs.parsing.outputs.compname }}
-  #     compvers: ${{ needs.parsing.outputs.compvers }}
-  #     arch: ${{ needs.parsing.outputs.comparch }}
-
-  #   steps:        
-  #     - name: Checkout git repository
-  #       uses: actions/checkout@v4
-
-  #     - name: Download artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: ${{ env.name }}-${{env.os}}${{env.os_version}}.${{ env.arch }}.rpm
-
+  rpm:
+    uses: ./.github/workflows/build_rpm.yaml
+    with:
+      target-architecture: x86_64
+      build-version: 0.6.1
+      release-version: 1

@@ -1,5 +1,9 @@
+%global debug_package %{nil}
+%define _build_name_fmt %%{ARCH}/%%{NAME}-%%{VERSION}-%%{RELEASE}.%{osr}.%%{ARCH}.rpm
+
+
 Name:           alumet
-Version:        0.5.0
+Version:        %{version}
 Release:        %{release}
 Summary:        A tool for measuring the energy consumption and performance metrics
 License:        EUPL
@@ -7,60 +11,49 @@ Url:            https://github.com/alumet-dev/alumet
 Source:         %{name}.tar.gz
 BuildArch:      x86_64
 
-%package alumet-local-agent
-Summary:        alumet-local-agent package
-%description alumet-local-agent
+Requires: glibc >= 2.2.5
+Requires: gcc >= 3.0
+Requires: gnu-hash
+Requires: rpmlib(CompressedFileNames) <= 3.0.4-1
+Requires: rpmlib(FileDigests) <= 4.6.0-1
+Requires: rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+Requires: rpmlib(PayloadIsXz) <= 5.2-1
+
+%package agent
+Summary:        alumet-agent package
+%description agent
 This package contains the alumet app agent.
-
-%package alumet-relay-server
-Summary:        alumet-relay-server package
-%description alumet-relay-server
-This package contains the alumet alumet-relay-server.
-
-%package alumet-relay-client
-Summary:        alumet-relay-client package
-%description alumet-relay-client
-This package contains the alumet alumet-relay-client.
  
 %description
 Customizable and efficient tool for measuring the energy consumption and performance metrics of software on HPC, Cloud and Edge devices. 
  
 %prep
 %autosetup -n %{name}
-
  
 %build
-cd alumet/app-agent
-json=$(CARGO_TARGET_DIR=%{_builddir} cargo build --bins --release --all-features --message-format=json-render-diagnostics "$@")
-executables=$(echo "$json" | grep -oP '"executable":"\K[^"]+' | tr '\n' ' ')
-echo "$executables" > %{_builddir}/executables.txt
-
-
+mkdir -p %{_builddir}/bin/
+cp packaging/alumet.sh %{_builddir}/alumet-agent
+cd alumet/agent
+CARGO_TARGET_DIR=%{_builddir}/bin/ ALUMET_AGENT_RELEASE=true cargo build --release -p alumet-agent --bins --all-features
+ALUMET_CONFIG=%{_builddir}/alumet-config.toml %{_builddir}/bin/release/alumet-agent config regen 
 
 %install
-mkdir -p %{buildroot}%{_bindir}
-ls -al %{_builddir}
-ls -al %{_builddir}/release/
-ls -al %{_builddir}/release/build/
-ls -al %{_builddir}/release/incremental
-ls -al  %{buildroot}%{_bindir}
-executables=$(cat %{_builddir}/executables.txt)
-for binary in $executables; do
-    filename=$(basename "$binary")
-    install -D -m 0755 "$binary" %{buildroot}%{_bindir}/"$filename"
-done
+mkdir -p %{buildroot}%{_exec_prefix}/lib/
+mkdir -p %{buildroot}%{_exec_prefix}/bin/
+install -D -m 0555 "%{_builddir}/bin/release/alumet-agent" "%{buildroot}%{_exec_prefix}/lib/"
+install -D -m 0755 "%{_builddir}/alumet-agent" "%{buildroot}%{_bindir}/"
+mkdir -p %{buildroot}%{_sysconfdir}/alumet
+chmod 777 %{buildroot}%{_sysconfdir}/alumet
+install -D -m 0755 "%{_builddir}/alumet-config.toml" "%{buildroot}%{_sysconfdir}/alumet/alumet-config.toml"
 
+%files agent
+%{_bindir}/alumet-agent
+%{_exec_prefix}/lib/alumet-agent
+%dir %{_sysconfdir}/alumet/
+%{_sysconfdir}/alumet/alumet-config.toml
 
-%files alumet-local-agent
-%{_bindir}/alumet-local-agent
-
-%files alumet-relay-server
-%{_bindir}/alumet-relay-server
-
-%files alumet-relay-client
-%{_bindir}/alumet-relay-client
-
- 
 %changelog 
+* Wed Feb 05 2025 Cyprien cyprien.pelisse-verdoux@eviden.com - 0.0.2
+- Unified package
 * Wed Sep 18 2024 Cyprien cyprien.pelisse-verdoux@eviden.com - 0.0.1
 - Initial package
