@@ -1,0 +1,9 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: alumet
+Upstream-Contact: Guillaume Raffin <theelectronwill@gmail.com>
+Source: https://github.com/alumet-dev/alumet
+Files: *
+Copyright: 2023-2024, Guillaume Raffin           
+           2023-2024, BULL SAS           
+           2023-2024, CNRS, INRIA, Grenoble INP-UGA
+License: EUPL-1.2

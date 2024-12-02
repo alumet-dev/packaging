@@ -1,0 +1,16 @@
+Source: alumet
+Maintainer: Guillaume Raffin <theelectronwill@gmail.com>
+Section: misc
+Priority: optional
+Standards-Version: 5.6.11
+Build-Depends: debhelper-compat (= 12)
+Homepage: https://alumet.dev/
+Vcs-Git: https://github.com/alumet-dev/alumet.git
+Version: VERSION-REVISION
+
+Package: alumet
+Architecture: amd64
+Depends: libc6 (>= 2.2.5), libgcc-s1 (>= 2.35), libcap2-bin, openssl
+Description: A tool for measuring the energy consumption and performance metrics
+    Customizable and efficient tool for measuring the energy consumption and
+    performance metrics of software on HPC, Cloud and Edge devices.

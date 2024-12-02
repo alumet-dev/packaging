@@ -1,0 +1,9 @@
+#!/bin/bash
+
+BIN="/usr/lib/alumet-agent"
+
+setcap 'cap_sys_nice+ep cap_perfmon=ep' $BIN
+
+echo -e "\e[33mWARNING\e[0m :Some Alumet features require system modifications. If you have any problems, please refer to the documentation"
+
+exit 0

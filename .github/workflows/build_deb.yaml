@@ -1,0 +1,226 @@
+---
+name: Build DEB pipeline
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: 'Architecture we want to build for'
+        required: true
+        type: string
+
+      name:
+        description: 'Header name used to build and tag the DEB'
+        required: true
+        type: string
+
+      version:
+        description: 'Version used to build and tag the DEB'
+        required: true
+        type: string
+
+      revision:
+        description: 'Revision of package version'
+        required: true
+        type: string
+
+      urgency:
+        description: 'Urgency of the package release : {low, medium, high}'
+        required: true
+        type: string
+        default: medium
+
+      note:
+        description: 'Message concerning package state of progress'
+        required: false
+        type: string
+        default: "Last release"
+
+env:
+  author: "Guillaume Raffin"
+  mail: "theelectronwill@gmail.com"
+
+jobs:
+  packaging:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["debian:11", "debian:12", "ubuntu:20.04", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:25.04"]
+
+    container:
+      image: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: 'true'
+
+      - name: Set dynamic environment variables
+        run: |
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "ALUMET_DIR=${{ inputs.name }}-${{ inputs.version }}" >> $GITHUB_ENV
+
+      # Installation of dependencies required for the package compilation
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential devscripts debhelper
+
+      # Rename the alumet-X.X path with correct version before to enter in it
+      - name: Alumet source code downloading from GitHub repository
+        run: |
+          base=$(find . -maxdepth 1 -type d -name "alumet-X.X")
+
+          if [ -d "$base" ]; then
+              if [ ! -d "${{ env.ALUMET_DIR }}" ]; then
+                  mv -f "$base" "${{ env.ALUMET_DIR }}"
+              fi
+          else
+              echo "\e[31mERROR\e[0m : No directory '$dir' found."
+              exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          repository: alumet-dev/alumet
+          fetch-tags: 'true'
+          ref: 'main'
+          path: '${{ env.ALUMET_DIR }}/alumet'
+
+      - name: Install Rust and dependencies
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+          echo '. "$HOME/.cargo/env"' >> $HOME/.bashrc
+          . "$HOME/.cargo/env"
+          packages=("curl" "git" "build-essential" "protobuf-compiler" "libssl-dev" "pkg-config")
+          for package in "${packages[@]}"; do
+            if ! dpkg -l | grep -q "^ii  $package "; then
+              echo -e "\e[33mWARNING\e[0m : Packages '$package' required. Installation..."
+              apt-get install -y "$package"
+            fi
+          done
+          rustup default stable
+
+      - name: Compile Alumet
+        run: |
+          . "$HOME/.cargo/env"
+          base=$(pwd)
+          cd ${{ env.ALUMET_DIR }}/alumet/agent/
+          mkdir -p ${base}/bin/
+          CARGO_TARGET_DIR=${base}/bin/ ALUMET_AGENT_RELEASE=true cargo build --release -p alumet-agent --bins --all-features
+          cp ${base}/bin/release/alumet-agent ${base}/${{ env.ALUMET_DIR }}/usr/lib/
+
+      - name: Create config file for Alumet
+        run: |
+          . "$HOME/.cargo/env"
+          mkdir -p ${{ env.ALUMET_DIR }}/etc/alumet/
+          ALUMET_CONFIG=${{ env.ALUMET_DIR }}/etc/alumet/alumet-config.toml ./${{ env.ALUMET_DIR }}/usr/lib/alumet-agent --plugins csv,perf,procfs,socket-control config regen
+
+      - name: Grant rights
+        run: |
+          cd ${{ env.ALUMET_DIR }}
+          chmod 755 usr/lib/alumet-agent
+          chmod 755 usr/bin/alumet-agent
+          chmod 644 etc/alumet/alumet-config.toml
+          chmod 644 usr/lib/systemd/system/alumet.service
+
+      - name: Define package name
+        id: define_package_name
+        run: |
+          echo "PACKAGE_NAME=${{ inputs.name }}-agent_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
+
+      # Package construction with dch and dpkg-buildpackage :
+      #  - 'dch' allow to create the debian/changelog file used in Debian package for some dynamic elements
+      #  - 'dpkg-buildpackage' build the Debian package according the changelog
+      - name: Official DEB package construction with dpkg builder
+        run: |
+          export DEBFULLNAME="${{ env.author }}"
+          export DEBEMAIL="${{ env.mail }}"
+
+          # Go to the correct file and apply correct rights
+          cd "${{ env.ALUMET_DIR }}"
+
+          # Replace in control file with the correct values
+          sed -i 's/VERSION/${{ inputs.version }}/g' ./debian/control
+          sed -i 's/REVISION/${{ inputs.revision }}/g' ./debian/control
+
+          # Create the archive
+          tar -czf ../"${{ inputs.name }}"_"${{ inputs.version }}".orig.tar.gz .
+          dch --create --package "${{ inputs.name }}" \
+              --newversion "${{ inputs.version }}-${{ inputs.revision }}" \
+              --distribution "${{ inputs.distro }}" \
+              --urgency "${{ inputs.urgency }}" \
+              "${{ inputs.note }}"
+
+          dpkg-buildpackage -us -uc
+
+          cd ..
+          mv ${{ inputs.name }}_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}.deb ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
+          path: |
+            ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
+
+  testing:
+    needs: packaging
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    container:
+      image: "debian:11"
+      options: --cap-add=SYS_NICE --cap-add=PERFMON
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'alumet-dev/packaging'
+          fetch-depth: 1
+          path: 'packaging'
+          ref: 'feature/deb-package'  # TODO Change on merge !!
+
+      - name: Download DEB artifact
+        id: download_deb
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '**/*11*.deb'
+          path: ./deb
+          merge-multiple: true
+
+      - name: Install DEBs
+        run: |
+          apt-get update
+          deb_file=$(find ${{ steps.download_deb.outputs.download-path }} -name "*.deb" -print -quit)
+          apt-get install -y curl
+          apt-get install -y "$deb_file"
+
+      - name: Install Goss
+        run: |
+          curl -fsSL https://goss.rocks/install | sh
+
+      - name: Run Goss tests
+        run: |
+          set -e pipefail
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload artifact alumet-agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: goss-results-deb.txt
+          path: |
+            ./goss-results-deb.txt

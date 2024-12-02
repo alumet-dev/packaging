@@ -19,6 +19,7 @@ on:
         required: false
         type: number
         default: 1
+  push:
 
 jobs:
   rpm:
@@ -27,3 +28,12 @@ jobs:
       target-architecture: x86_64
       build-version: ${{ github.event.inputs.version }}
       release-version: ${{ github.event.inputs.release }}
+      
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    with:
+      arch: "amd64"
+      name: "alumet"
+      version: 0.8
+      revision: 1
+      urgency: "medium"
