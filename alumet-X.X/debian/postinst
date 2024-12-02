@@ -1,0 +1,11 @@
+#!/bin/bash
+
+BIN="usr/lib/alumet/alumet-agent"
+
+setcap 'cap_sys_nice+ep cap_perfmon=ep' $BIN
+
+echo -e "\e[33mWARNING\e[0m : If some functionalities are not available, install procps packages."
+echo -e "You can then enter the following command :"
+echo -e ">> sudo 'sysctl -w kernel.perf_event_paranoid=0'"
+
+exit 0

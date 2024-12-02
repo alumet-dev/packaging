@@ -1,0 +1,179 @@
+name : Build DEB pipeline
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: 'Architecture we want to build for'
+        required: true
+        type: string
+
+      name:
+        description: 'Header name used to build and tag the DEB'
+        required: true
+        type: string
+
+      version:
+        description: 'Version used to build and tag the DEB'
+        required: true
+        type: string
+
+      revision:
+        description: 'Revision of package version'
+        required: true
+        type: string
+
+      distro:
+        description: 
+          'Functional status of package :
+            * UNRELEASED : Work in progress version or not again published.
+            * stable : Stable released version.
+            * unstable : Not stable or still testing released version.
+            * testing : Still testing released version (often unstable).
+            * experimental : Pre-alpha version.'
+        required: true
+        type: string
+
+      urgency:
+        description: 'Urgency of the package release : {low, medium, high}'
+        required: true
+        type: string
+        default: medium
+
+      note:
+        description: 'Message concerning package state of progress'
+        required: false
+        type: string
+        default: "Last release"
+
+env:
+  author: "Guillaume Raffin"
+  mail: "theelectronwill@gmail.com"
+
+jobs:
+  packaging:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        #os: [ "debian:11", "debian:12", "ubuntu:20.04", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:25.04" ]
+        os: [ "debian:11" ]
+  
+    container:
+      image: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: 'true'
+
+      - name: Set dynamic environment variables
+        run: |
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "ALUMET_DIR=${{ inputs.name }}-${{ inputs.version }}" >> $GITHUB_ENV
+
+      # Installation of dependencies required for the package compilation
+      - name: Check OS package required dependencies for package construction
+        run: apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential devscripts debhelper
+
+      # Rename the alumet-X.X path with correct version before to enter in it
+      - name: Alumet source code downloading from GitHub repository
+        shell: bash
+        run: |
+          base=$(find . -maxdepth 1 -type d -name "${{ inputs.name }}-*")
+
+          if [ -d "$base" ]; then
+              if [ ! -d "${{ env.ALUMET_DIR }}" ]; then
+                  mv -f "$base" "${{ env.ALUMET_DIR }}"
+              fi
+          else
+              echo "\e[31mERROR\e[0m : No directory '$dir' found."
+              exit 1
+          fi
+
+          echo "DEB_NAME=${{ inputs.name }}_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          repository: alumet-dev/alumet
+          fetch-tags: 'true'
+          ref: 'main'
+          path: '${{ env.ALUMET_DIR }}/alumet'
+
+      # Package construction with dch and dpkg-buildpackage :
+      #  - 'dch' allow to create the debian/changelog file used in Debian package for some dynamic elements
+      #  - 'dpkg-buildpackage' build the Debian package according the changelog
+      - name: Official DEB package construction with dpkg builder
+        shell: bash
+        run: |
+          export DEBFULLNAME="${{ env.author }}"
+          export DEBEMAIL="${{ env.mail }}"
+
+          cd "${{ env.ALUMET_DIR }}"
+          chmod -R 775 script
+
+          tar -czf ../"${{ inputs.name }}"_"${{ inputs.version }}".orig.tar.gz .
+          dch --create --package "${{ inputs.name }}" \
+              --newversion "${{ inputs.version }}-${{ inputs.revision }}" \
+              --distribution "${{ inputs.distro }}" \
+              --urgency "${{ inputs.urgency }}" \
+              "${{ inputs.note }}"
+
+          dpkg-buildpackage -us -uc
+
+          cd ..
+          mv "${{ inputs.name }}"_"${{ inputs.version }}"-"${{ inputs.revision }}"_"${{ inputs.arch }}".deb "${{ env.DEB_NAME }}"
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.DEB_NAME }}
+          path: ${{ env.DEB_NAME }}
+
+  testing:
+    needs: packaging
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        #os: [ "debian:11", "debian:12", "ubuntu:20.04", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:25.04" ]
+        os: [ "debian:11" ]
+  
+    container:
+      image: ${{ matrix.os }}
+      options: --cap-add=SYS_NICE --cap-add=PERFMON
+
+    steps:
+      - name: Download DEB artifact
+        id: download_deb
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '**/*11*.deb'
+          path: ./deb
+          merge-multiple: true
+
+      - name: Check OS package required dependencies for package construction
+        run: apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y systemctl libcap2-bin openssl
+
+      # Check after package installation on OS the files location, and the validity of the service daemon
+      - name: Testing 'Alumet' package execution after its deployment on system
+        shell: bash
+        run: |
+          apt install ${{ steps.download_deb.outputs.download-path }}/*.deb
+  
+          ls -l /usr/bin/alumet
+          ls -l /usr/lib/alumet/alumet-agent
+          ls -l /usr/lib/systemd/system/alumet.service
+          ls -l /var/lib/alumet/alumet-config.toml
+
+          alumet exec sleep 1
+
+          systemctl start alumet.service
+          systemctl status alumet.service
+          #systemctl is-active alumet.service
+          systemctl stop alumet.service
