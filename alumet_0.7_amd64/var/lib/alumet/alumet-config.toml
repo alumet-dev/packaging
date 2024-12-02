@@ -1,0 +1,55 @@
+# -- global agent config --
+
+# upper bound of the interval between two updates of the commands received by the measurement sources
+max_update_interval = "500ms"
+
+# -- plugins configs, one table per plugin --
+
+[plugins.rapl]
+# Interval between each measurement of the RAPL plugin.
+# Most plugins that provide measurement sources also provide this configuration option.
+# Example: "1s" = 1 second
+# Example: "1ms" = 1 millisecond
+poll_interval = "1s"
+
+# Measurements are kept in a buffer and are only sent to the next step of the Alumet pipeline
+# when the flush interval expires.
+flush_interval = "5s"
+
+# Set to "true" to disable perf_events and only use powercap instead.
+# By default, the rapl plugin tries to use perf_events, and use powercap if that fails.
+no_perf_events = false
+
+[plugins.csv]
+# Path to the output file that contains the measurements.
+output_path = "alumet-output.csv"
+
+# Flush the file writer after each write operation.
+# A "write operation" may contain multiple measurement points.
+force_flush = true
+
+# In the "metric" column, append the unit to the name of each metric (except if the unit's name is empty).
+# For instance, a metric "energy" with a unit "Joules" (symbol "J") will be serialized as "energy_J".
+append_unit_to_metric_name = true
+
+# Use the display name of the units instead of their unique name, as specified by the UCUM.
+# See https://ucum.org/ucum for a list of unit and their symbols.
+use_unit_display_name = true
+
+# The character to use to separate CSV columns.
+csv_delimiter = ";"
+
+[plugins.perf]
+# List of hardware perf_events to measure.
+hardware_events = ["REF_CPU_CYCLES", "CACHE_MISSES", "BRANCH_MISSES"]
+
+# List of software perf_events to measure.
+software_events = []
+
+# List of cache perf_events to measure.
+cache_events = ["LL_READ_MISS"]
+
+# NOTE: for the moment, the perf plugin does not monitor the whole machine.
+# It provides the ability to monitor a specific process or cgroup, but this
+# ability needs to be explicitly turned on by another plugin.
+# The Alumet agent automatically does this when run with the `exec` command.

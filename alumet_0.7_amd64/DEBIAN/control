@@ -1,0 +1,11 @@
+Package: alumet
+Version: 0.7
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libc6 (>= 2.2.5), libgcc-s1 (>= 2.35), grep, binutils
+Maintainer: Eviden SEED team
+Description: A tool for measuring the energy consumption and performance metrics
+ Customizable and efficient tool for measuring the energy consumption and
+ performance metrics of software on HPC, Cloud and Edge devices.
+

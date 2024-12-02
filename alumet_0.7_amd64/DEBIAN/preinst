@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e;
+
+UBUNTU=("2.2.5" "2.3" "2.2.5");
+DEBIAN=("2.2.5" "2.35" "2.2.5");
+
+# Check package presence on system, and its minimal version required
+check_pkg(){
+    if [ "$#" -ne 2 ]; then
+        echo "Usage: $0 <path_to_library> <package_version>";
+        exit 1;
+    fi;
+
+    local pkg="$1";
+    local version="$2";
+
+    if [ ! -f "$pkg" ]; then
+        echo "<ERROR>: $pkg not found. Abort installation...";
+        exit 1;
+    fi;
+
+    avail=$(strings "$pkg" | grep GLIBC_ | head -n1 | cut -d'_' -f2-);
+
+    if dpkg --compare-versions "$avail" lt "$version"; then
+        echo "<ERROR>: $pkg version ($libm_version) < minimal required $version. Abort installation...";
+        exit 1;
+    fi;
+}
+
+check_pkg "/lib/x86_64-linux-gnu/libc.so.6" "${UBUNTU[0]}";
+check_pkg "/lib/x86_64-linux-gnu/libgcc_s.so.1" "${UBUNTU[1]}";
+check_pkg "/lib/x86_64-linux-gnu/libm.so.6" "${UBUNTU[2]}";
+
+exit 0;
