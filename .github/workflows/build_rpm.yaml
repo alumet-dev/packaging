@@ -1,4 +1,5 @@
-name : Build RPM pipeline
+---
+name: Build RPM pipeline
 on:
   workflow_call:
     inputs:
@@ -28,28 +29,17 @@ jobs:
           fetch-tags: 'true'
           ref: 'ci/create-rpm-package'
           path: 'packaging'
-      
-      - name: Setup for alumet
-        run: |
-          mkdir -p alumet
 
-      - name: Checkout alumet
-        uses: actions/checkout@v4
-        with:
-            repository: alumet-dev/alumet
-            path: "alumet"
-      
       - name: Parse alumet version
         id: params
         run: |
-          name=$(awk '/Name/ { print $2; exit }' packaging/specs/alumet.spec)
-
+          name=$(awk '/Name/ { print $2; exit }' packaging/rpm/specs/alumet.spec)
           echo "name=$name" >> $GITHUB_OUTPUT
-
           echo "Pipeline will build [$name] in version [${{ inputs.build-version }}] for the architecture [${{ inputs.target-architecture }}]" >> $GITHUB_STEP_SUMMARY
 
   packaging:
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs:
       - parsing
     strategy:
@@ -61,14 +51,14 @@ jobs:
     container:
       image: ${{ matrix.os }}
     steps:
-      
+
       - uses: actions/checkout@v4
         with:
-            repository: alumet-dev/packaging
-            fetch-tags: 'true'
-            ref: 'ci/create-rpm-package'
-            path: 'packaging'
-      
+          repository: alumet-dev/packaging
+          fetch-tags: 'true'
+          ref: 'ci/create-rpm-package'
+          path: 'packaging'
+
       - name: Export good OS version
         run: |
           echo "OS=$(echo ${{ matrix.os }} | awk -F'[/:]' '{print $(NF-1) "." $NF}')" >> $GITHUB_ENV
@@ -98,15 +88,6 @@ jobs:
           done
           rustup default stable
 
-        
-      - name: Install protoc
-        run: |
-          PROTOC_ZIP=protoc-28.0-linux-x86_64.zip
-          curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v28.0/$PROTOC_ZIP
-          unzip -o $PROTOC_ZIP -d /usr/local bin/protoc || unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
-          unzip -o $PROTOC_ZIP -d /usr/local 'include/*' || unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
-          rm -f $PROTOC_ZIP
-          
       - name: Setup for alumet
         run: |
           mkdir -p alumet
@@ -115,9 +96,9 @@ jobs:
       - name: Checkout alumet
         uses: actions/checkout@v4
         with:
-            repository: alumet-dev/alumet
-            path: "alumet"
-            
+          repository: alumet-dev/alumet
+          path: "alumet"
+
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -130,11 +111,56 @@ jobs:
         run: |
           mkdir -p ${{ env.build_dir }}/SOURCES
           tar --exclude=".[^/]*" --exclude="./build" --transform 's|.|alumet|' -zcvf ${{ env.build_dir }}/SOURCES/alumet.tar.gz .
-          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ env.OS }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/specs/alumet.spec
+          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ env.OS }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/rpm/specs/alumet.spec
+
+      - name: Upload artifact local agent
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+          path: |
+            ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+
+  test-rpm:
+    runs-on: ubuntu-latest
+    needs:
+      - packaging
+    container:
+      image: "registry.access.redhat.com/ubi8/ubi:8.3"
+      options: --cap-add=SYS_NICE --cap-add=PERFMON
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'alumet-dev/packaging'
+          fetch-depth: 1
+          path: 'packaging'
+          ref: 'ci/create-rpm-package'
+
+      - name: Download RPM artifact
+        id: download_rpm
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '**/*8.3*.rpm'
+          path: ./rpm
+          merge-multiple: true
+
+      - name: Install RPMs
+        run: |
+          rpm -i ${{ steps.download_rpm.outputs.download-path }}/*.rpm
+
+      - name: Install Goss
+        run: |
+          curl -fsSL https://goss.rocks/install | sh
+
+      - name: Run Goss tests
+        run: |
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation >> $GITHUB_STEP_SUMMARY
 
       - name: Upload artifact local agent
         uses: actions/upload-artifact@v4
         with:
-          name: alumet-local-agent-${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+          name: report_goss.txt
           path: |
-            ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+            ./goss-results.txt

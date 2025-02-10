@@ -1,7 +1,6 @@
+---
 name: Main pipeline
-
 on:
-  pull_request: 
   workflow_dispatch:
     inputs:
       version:
@@ -13,11 +12,11 @@ on:
         required: false
         type: number
         default: 1
-      
+
 jobs:
   rpm:
     uses: ./.github/workflows/build_rpm.yaml
     with:
       target-architecture: x86_64
-      build-version: 0.6.1
-      release-version: 1
+      build-version: ${{ github.event.inputs.version || '0.0.0' }}
+      release-version: ${{ github.event.inputs.release || '1' }}
