@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# All arguments
+args=("$@")
+
+CONF="/var/lib/alumet/alumet-config.toml"
+DEFAULT_ALUMET_CONFIG_FILE="$CONF"
+
+alumet_bin_name=$(basename "$0")
+path_to_bin=$(temp=$(realpath "$0") && dirname "$temp")
+ALUMET="${path_to_bin}/../lib/${alumet_bin_name}/${alumet_bin_name}-agent"
+
+if ! [[ -x "$ALUMET" ]]; then
+    echo "Error: $ALUMET not found or not executable."
+    exit 1
+fi
+
+if [[ -z "${ALUMET_CONFIG}" ]]; then
+    # ALUMET_CONFIG environment variable defined not defined
+    # Check if argument about config file is given
+    if [ "$#" -lt 1 ]; then
+        echo "No argument provided."
+    fi
+
+    if [[ "$1" == "--config" ]]; then
+        if [ -z "$2" ]; then
+            echo "No value for --config."
+            exit 1
+        else
+            export ALUMET_CONFIG="$2"
+            # Skip the first two arguments
+            new_args=("${args[@]:2}")
+            $ALUMET "${new_args[@]}"
+        fi
+    elif [[ "$1" == --config=* ]]; then
+        export ALUMET_CONFIG="${1#*=}"
+        # Skip the first argument
+        new_args=("${args[@]:1}")
+        $ALUMET "${new_args[@]}"
+    else
+        export ALUMET_CONFIG=$DEFAULT_ALUMET_CONFIG_FILE
+        $ALUMET "$@"
+    fi
+
+else
+    # ALUMET_CONFIG environment variable defined 
+    $ALUMET "$@"
+fi

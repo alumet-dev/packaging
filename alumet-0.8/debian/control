@@ -1,0 +1,13 @@
+Source: alumet
+Maintainer: Guillaume Raffin <theelectronwill@gmail.com>
+Section: misc
+Priority: optional
+Standards-Version: 0.7
+Build-Depends: debhelper-compat (= 12)
+
+Package: alumet
+Architecture: amd64
+Depends: libc6 (>= 2.2.5), libgcc-s1 (>= 2.35), libcap2-bin
+Description: A tool for measuring the energy consumption and performance metrics
+    Customizable and efficient tool for measuring the energy consumption and
+    performance metrics of software on HPC, Cloud and Edge devices.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Alumet service Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/alumet --output-file "/var/log/alumet-output.csv"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,145 @@
+name : Build DEB pipeline
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: 'Architecture we want to build for'
+        required: true
+        type: string
+
+      name:
+        description: 'Header name used to build and tag the DEB'
+        required: true
+        type: string
+
+      version:
+        description: 'Version used to build and tag the DEB'
+        required: true
+        type: string
+
+      revision:
+        description: 'Revision of package version'
+        required: true
+        type: string
+
+      distro:
+        description: 'Functional status of package : {UNRELEASED, focal, jammy, noble, oracular, plucky, -updates, -security, -proposed, -backports}'
+        required: true
+        type: string
+
+      urgency:
+        description: 'Urgency of the package release : {low, medium, high}'
+        required: true
+        type: string
+
+      note:
+        description: 'Message concerning package state of progress'
+        required: true
+        type: string
+
+      author:
+        description: 'Name of the founder of Alumet project'
+        required: true
+        type: string
+
+      mail:
+        description: 'Mail address of Alumet project founder'
+        required: true
+        type: string
+
+env:
+  url: "https://github.com/alumet-dev/alumet/archive/refs/heads/main.zip"
+  archive: "sources.zip"
+  dependencies: "build-essential devscripts debhelper"
+
+jobs:
+  packaging:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ "debian:11", "debian:12", "ubuntu:20.04", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:25.04" ]
+  
+    container:
+      image: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: 'true'
+
+      - name: Set dynamic environment variables
+        run: |
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+
+      - name: Check OS package required dependencies for package construction
+        shell: bash
+        run: |
+          apt update
+
+          dep_pkg=(${{ env.dependencies }})
+          for i in "${dep_pkg[@]}"; do
+              if ! dpkg -l | grep -q "^ii  $i "; then
+                  echo -e "\e[33mWARNING\e[0m : Packages '$i' required. Installation..."
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y "$i" || exit
+              fi
+          done
+
+      - name: Alumet source code downloading from GitHub repository
+        shell: bash
+        run: |
+          base=$(find . -maxdepth 1 -type d -name "${{ inputs.name }}-*")
+          dir="${{ inputs.name }}"-"${{ inputs.version }}"
+
+          if [ -d "$base" ]; then
+              if [ ! -d "$dir" ]; then
+                  mv -f "$base" "$dir"
+              fi
+          else
+              echo "\e[31mERROR\e[0m : No directory '$dir' found."
+              exit 1
+          fi
+
+          cd "$dir" || exit
+          curl -L "${{ env.url }}" -o "${{ env.archive }}" || exit
+
+          unzip "${{ env.archive }}" || exit
+          rm "${{ env.archive }}"
+
+      - name: Official DEB package construction with dpkg builder
+        shell: bash
+        run: |
+          export DEBFULLNAME="${{ inputs.author }}"
+          export DEBEMAIL="${{ inputs.mail }}"
+
+          cd "${{ inputs.name }}"-"${{ inputs.version }}" || exit
+          chmod -R 775 script || exit
+          rm -f debian/changelog
+
+          tar -czf ../"${{ inputs.name }}"_"${{ inputs.version }}".orig.tar.gz . || exit
+          dch --create --package "${{ inputs.name }}" --newversion "${{ inputs.version }}"-"${{ inputs.revision }}" --distribution "${{ inputs.distro }}" --urgency "${{ inputs.urgency }}" "${{ inputs.note }}" || exit
+
+          dpkg-buildpackage -us -uc
+
+      - name: Cleaning DEB package
+        shell: bash
+        run: |
+          cd "${{ inputs.name }}"-"${{ inputs.version }}" || exit
+          dpkg-buildpackage -T clean
+
+      - name: Install the 'Alumet' DEB package created
+        shell: bash
+        run: |
+          mv "${{ inputs.name }}"_"${{ inputs.version }}"-"${{ inputs.revision }}"_"${{ inputs.arch }}".deb "${{ inputs.name }}"_"${{ inputs.version }}"-"${{ inputs.revision }}"_"${{ inputs.arch }}"_"${{ env.OS_NAME }}"_"${{ env.OS_VERSION }}".deb
+          apt install ./"${{ inputs.name }}"_"${{ inputs.version }}"-"${{ inputs.revision }}"_"${{ inputs.arch }}"_"${{ env.OS_NAME }}"_"${{ env.OS_VERSION }}".deb || exit
+
+      - name: Upload artifact agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb 
+          path: |
+            ${{ inputs.name }}_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb  

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+LIB=("/lib/x86_64-linux-gnu/libc.so.6"
+        "/lib/x86_64-linux-gnu/libgcc_s.so.1"
+        "/lib/x86_64-linux-gnu/libm.so.6");
+
+for lib_pkg in "${LIB[@]}"; do
+    if [ ! -f "$lib_pkg" ]; then
+        echo -e "\e[31mERROR:\e[0m : Abort installation, '$lib_pkg' not found...\n"
+    fi
+done
+
+exit 0
