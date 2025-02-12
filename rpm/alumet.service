@@ -1,0 +1,13 @@
+[Unit]
+Description=Alumet service Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/alumet-agent
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

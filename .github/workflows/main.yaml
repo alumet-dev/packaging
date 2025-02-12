@@ -1,0 +1,22 @@
+---
+name: Main pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version of package'
+        type: string
+        required: true
+      release:
+        description: 'The release number'
+        required: false
+        type: number
+        default: 1
+
+jobs:
+  rpm:
+    uses: ./.github/workflows/build_rpm.yaml
+    with:
+      target-architecture: x86_64
+      build-version: ${{ github.event.inputs.version || '0.0.0' }}
+      release-version: ${{ github.event.inputs.release || '1' }}
