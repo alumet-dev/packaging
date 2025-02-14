@@ -1,0 +1,21 @@
+name: Main pipeline
+ 
+on:
+  pull_request:
+  push:
+
+jobs:
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    with:
+      arch: "amd64"
+      name: "alumet"
+      version: 0.8
+      revision: 1
+
+      distro: "stable"
+      urgency: "medium"
+      note: "Release v0.8.1"
+
+      author: "Guillaume Raffin"
+      mail: "theelectronwill@gmail.com"
