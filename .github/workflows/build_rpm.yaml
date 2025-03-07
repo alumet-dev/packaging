@@ -34,12 +34,6 @@ jobs:
         run: |
           mkdir -p alumet
 
-      - name: Checkout alumet
-        uses: actions/checkout@v4
-        with:
-          repository: alumet-dev/alumet
-          path: "alumet"
-
       - name: Parse alumet version
         id: params
         run: |
