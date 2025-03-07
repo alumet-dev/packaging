@@ -1,0 +1,15 @@
+name: Main pipeline
+ 
+on:
+  push:
+
+jobs:
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    with:
+      arch: "amd64"
+      name: "alumet"
+      version: 0.8
+      revision: 1
+      distro: "testing"
+      urgency: "medium"
