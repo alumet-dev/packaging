@@ -30,10 +30,6 @@ jobs:
           ref: 'ci/create-rpm-package'
           path: 'packaging'
 
-      - name: Setup for alumet
-        run: |
-          mkdir -p alumet
-
       - name: Parse alumet version
         id: params
         run: |
