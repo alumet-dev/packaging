@@ -11,12 +11,16 @@ service:
 file:
   /etc/alumet/alumet-config.toml:
     exists: true
+    mode: "0644"
   /usr/lib/alumet-agent:
     exists: true
+    mode: "0555"
   /usr/bin/alumet-agent:
     exists: true
+    mode: "0755"
   /usr/lib/systemd/system/alumet.service:
     exists: true
+    mode: "0644"
 
 command:
   'run alumet-agent':

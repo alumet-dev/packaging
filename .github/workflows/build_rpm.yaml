@@ -27,7 +27,7 @@ jobs:
         with:
           repository: alumet-dev/packaging
           fetch-tags: 'true'
-          ref: 'ci/create-rpm-package'
+          ref: 'ci/create-rpm-package'  # TODO Change on merge
           path: 'packaging'
 
       - name: Parse alumet version
@@ -91,7 +91,7 @@ jobs:
       - name: Setup for alumet
         run: |
           mkdir -p alumet
-          mkdir -p /etc/alumet //TODO change
+          mkdir -p /etc/alumet  // TODO Change on merge !!
 
       - name: Checkout alumet
         uses: actions/checkout@v4
@@ -136,7 +136,7 @@ jobs:
           repository: 'alumet-dev/packaging'
           fetch-depth: 1
           path: 'packaging'
-          ref: 'ci/create-rpm-package'
+          ref: 'ci/create-rpm-package'  # TODO Change on merge !!
 
       - name: Download RPM artifact
         id: download_rpm
@@ -156,7 +156,7 @@ jobs:
 
       - name: Run Goss tests
         run: |
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation >> $GITHUB_STEP_SUMMARY
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload artifact local agent
         uses: actions/upload-artifact@v4
