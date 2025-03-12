@@ -28,8 +28,7 @@ particularly if you're not on fedora.
 # How to install ?
 
 ```bash
-sudo rpm -i <rpm file>
-sudo -E zypper install --allow-unsigned-rpm temp_rpm/alumet-agent-0.6.1-1.fedora.40.x86_64.rpm
+sudo -E zypper install --allow-unsigned-rpm ./file.rpm
 ```
 
 # How to uninstall
@@ -37,13 +36,13 @@ sudo -E zypper install --allow-unsigned-rpm temp_rpm/alumet-agent-0.6.1-1.fedora
 List all installed Alumet package:
 
 ```bash
-rpm -qa | grep -i alumet
+sudo zypper search --installed-only -s -t package | grep -i alumet
 ```
 
 Remove the correct Alumet package
 
 ```bash
-sudo rpm -e <package>
+sudo remove <package>
 ```
 
 # What does the RPM do ?
@@ -74,6 +73,7 @@ Build RPM for specified architecture and version
 |   target-architecture   |  string  |     true      |    ✅    |
 |   build-version         |  string  |     true      |    ✅    |
 |   release-version       |  string  |     true      |    ✅    |
+|   tag                   |  string  |     '  '      |    ❌    |
 
 ### Example of usage
 
@@ -85,6 +85,7 @@ jobs:
       target-architecture: x86_64
       build-version: 0.6.1
       release-version: 1
+      tag: v0.5.0
 ```
 
 When compiled for fedora 40 for x86_64 architecture, with this input, the resulting package will be

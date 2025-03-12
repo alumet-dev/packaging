@@ -15,6 +15,12 @@ on:
         description: 'What is the release version used to build and tag the RPMs'
         required: true
         type: string
+      tag:
+        description: 'The tag used to checkout the correct version of source code'
+        required: false
+        type: string
+        default: ''
+
 
 jobs:
   parsing:
@@ -96,8 +102,10 @@ jobs:
       - name: Checkout alumet
         uses: actions/checkout@v4
         with:
-          repository: alumet-dev/alumet
+          # repository: alumet-dev/alumet
+          repository: AngeCyp/alumet-testing  # TODO Change on merge
           path: "alumet"
+          ref: '${{ inputs.tag }}'
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -114,7 +122,6 @@ jobs:
           rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ env.OS }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/rpm/specs/alumet.spec
 
       - name: Upload artifact local agent
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
