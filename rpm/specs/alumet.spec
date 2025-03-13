@@ -50,6 +50,11 @@ mkdir -p %{buildroot}%{_sysconfdir}/alumet
 chmod 777 %{buildroot}%{_sysconfdir}/alumet
 install -D -m 0644 "%{_builddir}/alumet-config.toml" "%{buildroot}%{_sysconfdir}/alumet/alumet-config.toml"
 install -D -m 0644 "%{_builddir}/alumet.service" "%{buildroot}%{_exec_prefix}/lib/systemd/system/alumet.service"
+# Add capabilities to alumet binary
+%caps(cap_sys_nice=pe) %{buildroot}%{_exec_prefix}/lib/alumet-agent
+if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 8 ]; }; then
+    %caps(cap_perfmon=pe) %{buildroot}%{_exec_prefix}/lib/alumet-agent
+fi
 
 %files agent
 %{_bindir}/alumet-agent
@@ -57,13 +62,6 @@ install -D -m 0644 "%{_builddir}/alumet.service" "%{buildroot}%{_exec_prefix}/li
 %dir %{_sysconfdir}/alumet/
 %{_sysconfdir}/alumet/alumet-config.toml
 %{_exec_prefix}/lib/systemd/system/alumet.service
-
-%post
-# Add capabilities to alumet binary
-%caps(cap_sys_nice+pe) %{_exec_prefix}/lib/alumet-agent
-if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 8 ]; }; then
-    %caps(cap_perfmon=pe) %{_exec_prefix}/lib/alumet-agent
-fi
 
 
 %changelog 
