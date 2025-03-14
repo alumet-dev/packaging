@@ -24,5 +24,5 @@ file:
 
 command:
   'run alumet-agent':
-    exec: "alumet-agent --plugins csv,procfs exec -- sleep 1 && cat alumet-output.csv"
+    exec: "alumet-agent --plugins csv,procfs exec -- sleep 1 && [ -s alumet-output.csv ]"
     exit-status: 0

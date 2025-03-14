@@ -36,7 +36,7 @@ jobs:
           ref: 'ci/create-rpm-package'  # TODO Change on merge
           path: 'packaging'
 
-      - name: Parse alumet version
+      - name: Parse Alumet package name
         id: params
         run: |
           name=$(awk '/Name/ { print $2; exit }' packaging/rpm/specs/alumet.spec)
@@ -51,11 +51,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["fedora:40", "fedora:41", "fedora:42", "registry.access.redhat.com/ubi8/ubi:8.3", "registry.access.redhat.com/ubi9/ubi:9.5"]
+        os: [ {name: fc40, base-image: fedora:40}, {name: fc41, base-image: fedora:41}, {name: fc42, base-image: fedora:42}, {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}, {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5} ]
+
     env:
       name: ${{ needs.parsing.outputs.name }}
     container:
-      image: ${{ matrix.os }}
+      image: ${{ matrix.os.base-image }}
     steps:
 
       - uses: actions/checkout@v4
@@ -65,41 +66,29 @@ jobs:
           ref: 'ci/create-rpm-package'
           path: 'packaging'
 
-      - name: Export good OS version
-        run: |
-          echo "OS=$(echo ${{ matrix.os }} | awk -F'[/:]' '{print $(NF-1) "" $NF}')" >> $GITHUB_ENV
-
-      - name: Install RPM on Fedora
-        if: contains(matrix.os, 'fedora')
+      - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y
-          export PATH=$PATH:$HOME/.cargo/bin/
+          
+      - name: Install RPM on Fedora
+        if: contains(matrix.os.base-image, 'fedora')
+        run: |
+          
           sudo dnf install rpm-build -y
           sudo dnf install cargo-rpm-macros -y
           sudo dnf install openssl-devel -y
 
       - name: Install RPM on other than Fedora
-        if: ${{ ! contains(matrix.os, 'fedora') }}
+        if: ${{ ! contains(matrix.os.base-image, 'fedora') }}
         run: |
-          mkdir -p /opt/rustup
-          mkdir -p /opt/cargo
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo sh -s -- -y
-          echo 'export PATH=$PATH:/opt/rustup:/opt/cargo/bin' >> ~/.bashrc && source ~/.bashrc
-          echo 'export PATH=$PATH:/opt/rustup:/opt/cargo/bin' >> $GITHUB_PATH
-          packages=("unzip" "rpm-build" "openssl-devel" "curl" "gcc")
-          for package in "${packages[@]}"; do
-            if ! yum list installed "$package" >/dev/null 2>&1; then
-              yum install -y --allowerasing "$package"
-            fi
-          done
-          rustup default stable
+          yum install -y --allowerasing unzip rpm-build openssl-devel curl gcc
 
       - name: Setup for alumet
         run: |
           mkdir -p alumet
-          mkdir -p /etc/alumet  // TODO Change on merge !!
+          mkdir -p /etc/alumet
 
-      - name: Checkout alumet
+      - name: Checkout alumet repo
         uses: actions/checkout@v4
         with:
           # repository: alumet-dev/alumet
@@ -110,30 +99,40 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          cache-targets: "alumet"
+          cache-targets: "alumet-agent"
 
-      - name: get Spec settings
-        id: get-spec-settings
+      - name: Build RPM package
+        id: build-rpm-package
         env:
           build_dir: "$(pwd)/build"
         run: |
+          export PATH=$PATH:$HOME/.cargo/bin/
           mkdir -p ${{ env.build_dir }}/SOURCES
-          tar --exclude=".[^/]*" --exclude="./build" --transform 's|.|alumet|' -zcvf ${{ env.build_dir }}/SOURCES/alumet.tar.gz .
-          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ env.OS }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/rpm/specs/alumet.spec
+          tar --exclude=".[^/]*" --exclude="./build" --transform 's|.|alumet|' -zcvf ${{ env.build_dir }}/SOURCES/alumet-agent.tar.gz .
+          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/rpm/specs/alumet.spec
 
-      - name: Upload artifact local agent
+      - name: Upload artifact alumet-agent
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+          name: ${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.rpm
           path: |
-            ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ env.OS }}.${{ inputs.target-architecture }}.rpm
+            ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.rpm
 
-  test-rpm:
+  testing:
     runs-on: ubuntu-latest
     needs:
       - packaging
+    strategy:
+      fail-fast: false
+      matrix:
+        os: 
+          - { name: fc40, base-image: fedora:40 }
+          - { name: fc41, base-image: fedora:41 }
+          - { name: fc42, base-image: fedora:42 }
+          - { name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3 }
+          - { name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5 }
     container:
-      image: "registry.access.redhat.com/ubi8/ubi:8.3"
+      image: ${{ matrix.os.base-image }}
       options: --cap-add=SYS_NICE --cap-add=PERFMON
 
     steps:
@@ -149,13 +148,18 @@ jobs:
         id: download_rpm
         uses: actions/download-artifact@v4
         with:
-          pattern: '**/*8.3*.rpm'
+          pattern: '**/*${{ matrix.os.name }}*.rpm'
           path: ./rpm
           merge-multiple: true
 
+      - name: Install RPM on Fedora
+        if: contains(matrix.os.base-image, 'fedora')
+        run: |
+          dnf install -y systemd
+
       - name: Install RPMs
         run: |
-          rpm -i ${{ steps.download_rpm.outputs.download-path }}/*.rpm
+          dnf install -y ${{ steps.download_rpm.outputs.download-path }}/*.rpm
 
       - name: Install Goss
         run: |
@@ -163,15 +167,12 @@ jobs:
 
       - name: Run Goss tests
         run: |
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results.txt >> $GITHUB_STEP_SUMMARY
-          failed_count=$(grep -oP 'Failed:\s*(\d+)' goss-results.txt | awk -F': ' '{print $2}')
-          if [ "$failed_count" -ne 0 ]; then
-            exit 1
-          fi
+          set -o pipefail
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm_${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload artifact local agent
+      - name: Upload artifact alumet-agent
         uses: actions/upload-artifact@v4
         with:
-          name: report_goss.txt
+          name: goss-results-rpm_${{ matrix.os.name }}.txt
           path: |
-            ./goss-results.txt
+            ./goss-results-rpm_${{ matrix.os.name }}.txt

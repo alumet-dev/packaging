@@ -1,4 +1,10 @@
 ---
+# This file is used to test the correct packaging of Alumet in the RPM format.
+# It call the reusable workflow ./.github/workflows/build_rpm.yaml with
+# the following default value:
+# target-architecture: x86_64
+# It also use the input provided to fill 
+# the build-version and release-version fields.
 name: Main pipeline
 on:
   workflow_dispatch:
@@ -12,6 +18,7 @@ on:
         required: false
         type: number
         default: 1
+  push:
 
 jobs:
   rpm:
