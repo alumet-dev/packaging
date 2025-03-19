@@ -35,5 +35,6 @@ jobs:
       tag: v0.5.0
 ```
 
-When compiled for fedora 40 for x86_64 architecture, with this input, the resulting package will be
-`alumet-agent-0.6.1-1.fedora.40.x86_64.rpm`
+When compiled for fedora 40 for x86_64 architecture, with this input,
+the resulting package will be
+`alumet-agent-0.6.1-1.fc40.x86_64.rpm`

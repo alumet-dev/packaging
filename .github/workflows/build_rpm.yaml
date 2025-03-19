@@ -21,7 +21,6 @@ on:
         type: string
         default: ''
 
-
 jobs:
   parsing:
     runs-on: ubuntu-latest
@@ -33,7 +32,7 @@ jobs:
         with:
           repository: alumet-dev/packaging
           fetch-tags: 'true'
-          ref: 'ci/create-rpm-package'  # TODO Change on merge
+          ref: 'main'
           path: 'packaging'
 
       - name: Parse Alumet package name
@@ -51,8 +50,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ {name: fc40, base-image: fedora:40}, {name: fc41, base-image: fedora:41}, {name: fc42, base-image: fedora:42}, {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}, {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5} ]
-
+        os:
+          - {name: fc40, base-image: fedora:40}
+          - {name: fc41, base-image: fedora:41}
+          - {name: fc42, base-image: fedora:42}
+          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
     env:
       name: ${{ needs.parsing.outputs.name }}
     container:
@@ -69,14 +72,10 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y
-          
+
       - name: Install RPM on Fedora
         if: contains(matrix.os.base-image, 'fedora')
-        run: |
-          
-          sudo dnf install rpm-build -y
-          sudo dnf install cargo-rpm-macros -y
-          sudo dnf install openssl-devel -y
+        run: sudo dnf install -y rpm-build cargo-rpm-macros openssl-devel
 
       - name: Install RPM on other than Fedora
         if: ${{ ! contains(matrix.os.base-image, 'fedora') }}
@@ -91,8 +90,7 @@ jobs:
       - name: Checkout alumet repo
         uses: actions/checkout@v4
         with:
-          # repository: alumet-dev/alumet
-          repository: AngeCyp/alumet-testing  # TODO Change on merge
+          repository: alumet-dev/alumet
           path: "alumet"
           ref: '${{ inputs.tag }}'
 
@@ -125,12 +123,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: 
-          - { name: fc40, base-image: fedora:40 }
-          - { name: fc41, base-image: fedora:41 }
-          - { name: fc42, base-image: fedora:42 }
-          - { name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3 }
-          - { name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5 }
+        os:
+          - {name: fc40, base-image: fedora:40}
+          - {name: fc41, base-image: fedora:41}
+          - {name: fc42, base-image: fedora:42}
+          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
     container:
       image: ${{ matrix.os.base-image }}
       options: --cap-add=SYS_NICE --cap-add=PERFMON
@@ -142,7 +140,7 @@ jobs:
           repository: 'alumet-dev/packaging'
           fetch-depth: 1
           path: 'packaging'
-          ref: 'ci/create-rpm-package'  # TODO Change on merge !!
+          ref: 'main'
 
       - name: Download RPM artifact
         id: download_rpm
@@ -152,7 +150,7 @@ jobs:
           path: ./rpm
           merge-multiple: true
 
-      - name: Install RPM on Fedora
+      - name: Install systemd on Fedora
         if: contains(matrix.os.base-image, 'fedora')
         run: |
           dnf install -y systemd
@@ -166,13 +164,17 @@ jobs:
           curl -fsSL https://goss.rocks/install | sh
 
       - name: Run Goss tests
+        id: goss-tests
         run: |
           set -o pipefail
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm_${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload artifact alumet-agent
+      - name: Upload goss report
+        if: >-
+          always() &&
+          steps.goss-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: goss-results-rpm_${{ matrix.os.name }}.txt
+          name: goss-results-rpm-${{ matrix.os.name }}.txt
           path: |
-            ./goss-results-rpm_${{ matrix.os.name }}.txt
+            ./goss-results-rpm-${{ matrix.os.name }}.txt

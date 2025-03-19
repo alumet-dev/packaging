@@ -3,7 +3,7 @@
 # It call the reusable workflow ./.github/workflows/build_rpm.yaml with
 # the following default value:
 # target-architecture: x86_64
-# It also use the input provided to fill 
+# It also use the input provided to fill
 # the build-version and release-version fields.
 name: Main pipeline
 on:
@@ -12,18 +12,18 @@ on:
       version:
         description: 'Version of package'
         type: string
-        required: true
+        required: false
+        default: '0.0.0'
       release:
         description: 'The release number'
         required: false
         type: number
         default: 1
-  push:
 
 jobs:
   rpm:
     uses: ./.github/workflows/build_rpm.yaml
     with:
       target-architecture: x86_64
-      build-version: ${{ github.event.inputs.version || '0.0.0' }}
-      release-version: ${{ github.event.inputs.release || '1' }}
+      build-version: ${{ github.event.inputs.version }}
+      release-version: ${{ github.event.inputs.release }}
