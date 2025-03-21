@@ -35,13 +35,19 @@ on:
         required: false
         type: string
         default: "Last release"
+      
+      tag:
+        description: 'The tag used to checkout the correct version of source code'
+        required: false
+        type: string
+        default: 'main'
 
 env:
   author: "Guillaume Raffin"
   mail: "theelectronwill@gmail.com"
 
 jobs:
-  packaging:
+  deb-packaging:
 
     runs-on: ubuntu-latest
 
@@ -58,9 +64,12 @@ jobs:
         shell: bash
 
     steps:
+
       - uses: actions/checkout@v4
         with:
+          repository: alumet-dev/packaging
           fetch-tags: 'true'
+          ref: 'main'
 
       - name: Set dynamic environment variables
         run: |
@@ -74,17 +83,16 @@ jobs:
         run: |
           apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential devscripts debhelper
 
-      # Rename the alumet-X.X path with correct version before to enter in it
+      # Rename the deb path with correct version before to enter in it
       - name: Alumet source code downloading from GitHub repository
         run: |
-          base=$(find . -maxdepth 1 -type d -name "alumet-X.X")
-
+          base=$(find . -maxdepth 1 -type d -name "deb")
           if [ -d "$base" ]; then
               if [ ! -d "${{ env.ALUMET_DIR }}" ]; then
                   mv -f "$base" "${{ env.ALUMET_DIR }}"
               fi
           else
-              echo "\e[31mERROR\e[0m : No directory '$dir' found."
+              echo "\e[31mERROR\e[0m : No directory '${{ env.ALUMET_DIR }}' found."
               exit 1
           fi
 
@@ -92,7 +100,7 @@ jobs:
         with:
           repository: alumet-dev/alumet
           fetch-tags: 'true'
-          ref: 'main'
+          ref: '${{ inputs.tag }}'
           path: '${{ env.ALUMET_DIR }}/alumet'
 
       - name: Install Rust and dependencies
@@ -101,13 +109,7 @@ jobs:
 
           echo '. "$HOME/.cargo/env"' >> $HOME/.bashrc
           . "$HOME/.cargo/env"
-          packages=("curl" "git" "build-essential" "protobuf-compiler" "libssl-dev" "pkg-config")
-          for package in "${packages[@]}"; do
-            if ! dpkg -l | grep -q "^ii  $package "; then
-              echo -e "\e[33mWARNING\e[0m : Packages '$package' required. Installation..."
-              apt-get install -y "$package"
-            fi
-          done
+          apt-get install -y curl git build-essential protobuf-compiler libssl-dev pkg-config
           rustup default stable
 
       - name: Compile Alumet
@@ -139,8 +141,8 @@ jobs:
           echo "PACKAGE_NAME=${{ inputs.name }}-agent_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
 
       # Package construction with dch and dpkg-buildpackage :
-      #  - 'dch' allow to create the debian/changelog file used in Debian package for some dynamic elements
-      #  - 'dpkg-buildpackage' build the Debian package according the changelog
+      #  - 'dch' generates the changelog
+      #  - 'dpkg-buildpackage' builds the Debian package, calling the 'dh' command. Only the timestamps is used from the changelog, used to create env var SOURCE_DATE_EPOCH
       - name: Official DEB package construction with dpkg builder
         run: |
           export DEBFULLNAME="${{ env.author }}"
@@ -164,7 +166,7 @@ jobs:
           dpkg-buildpackage -us -uc
 
           cd ..
-          mv ${{ inputs.name }}_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}.deb ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
+          mv ${{ inputs.name }}-agent_${{ inputs.version }}-${{ inputs.revision }}_${{ inputs.arch }}.deb ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
 
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
@@ -173,16 +175,24 @@ jobs:
           path: |
             ${{ steps.define_package_name.outputs.PACKAGE_NAME }}
 
-  testing:
-    needs: packaging
+  deb-testing:
+    needs: deb-packaging
 
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
+      matrix:
+        os:
+          - {name: "11", base-image: debian:11}
+          - {name: "12", base-image: debian:12}
+          - {name: "20.04", base-image: ubuntu:20.04}
+          - {name: "22.04", base-image: ubuntu:22.04}
+          - {name: "24.04", base-image: ubuntu:24.04}
+          - {name: "25.04", base-image: ubuntu:25.04}
 
     container:
-      image: "debian:11"
+      image: ${{ matrix.os.base-image }}
       options: --cap-add=SYS_NICE --cap-add=PERFMON
 
     steps:
@@ -192,13 +202,13 @@ jobs:
           repository: 'alumet-dev/packaging'
           fetch-depth: 1
           path: 'packaging'
-          ref: 'feature/deb-package'  # TODO Change on merge !!
+          ref: 'main'
 
       - name: Download DEB artifact
         id: download_deb
         uses: actions/download-artifact@v4
         with:
-          pattern: '**/*11*.deb'
+          pattern: '**/*${{ matrix.os.name }}*.deb'
           path: ./deb
           merge-multiple: true
 
@@ -214,13 +224,17 @@ jobs:
           curl -fsSL https://goss.rocks/install | sh
 
       - name: Run Goss tests
+        id: goss-tests
         run: |
           set -e pipefail
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb.txt >> $GITHUB_STEP_SUMMARY
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload artifact alumet-agent
+        if: >-
+          always() &&
+          steps.goss-tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: goss-results-deb.txt
+          name: goss-results-deb-${{ matrix.os.name }}.txt
           path: |
-            ./goss-results-deb.txt
+            ./goss-results-deb-${{ matrix.os.name }}.txt

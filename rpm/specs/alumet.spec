@@ -25,7 +25,7 @@ Customizable and efficient tool for measuring the energy consumption and perform
  
 %build
 mkdir -p %{_builddir}/bin/
-cp packaging/rpm/alumet.sh %{_builddir}/alumet-agent
+cp packaging/rpm/alumet-agent %{_builddir}/alumet-agent
 cp packaging/rpm/alumet.service %{_builddir}/alumet.service
 cd %{_builddir}/alumet/alumet/agent
 CARGO_TARGET_DIR=%{_builddir}/bin/ ALUMET_AGENT_RELEASE=true cargo build --release -p alumet-agent --bins --all-features
@@ -34,7 +34,7 @@ ALUMET_CONFIG=%{_builddir}/alumet-config.toml %{_builddir}/bin/release/alumet-ag
 %install
 mkdir -p %{buildroot}%{_exec_prefix}/lib/
 mkdir -p %{buildroot}%{_exec_prefix}/bin/
-install -D -m 0555 "%{_builddir}/bin/release/alumet-agent" "%{buildroot}%{_exec_prefix}/lib/alumet-agent"
+install -D -m 0755 "%{_builddir}/bin/release/alumet-agent" "%{buildroot}%{_exec_prefix}/lib/alumet-agent"
 ls -al %{_builddir}/
 install -D -m 0755 "%{_builddir}/alumet-agent" "%{buildroot}%{_bindir}/alumet-agent"
 mkdir -p %{buildroot}%{_sysconfdir}/alumet
