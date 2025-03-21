@@ -14,7 +14,7 @@ file:
     mode: "0644"
   /usr/lib/alumet-agent:
     exists: true
-    mode: "0555"
+    mode: "0755"
   /usr/bin/alumet-agent:
     exists: true
     mode: "0755"
