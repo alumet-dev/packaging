@@ -3,7 +3,7 @@ ARG BASE_IMAGE=registry.access.redhat.com/ubi9-micro:9.5
 FROM $BUILDER_IMAGE AS builder
 
 ARG ALUMET_VERSION=0.8
-LABEL org.opencontainers.image.authors="ahuret@eviden.com" \
+LABEL org.opencontainers.image.authors="maintainers@alumet.dev" \
 	org.opencontainers.image.documentation="https://alumet-dev.github.io/user-book" \
 	org.opencontainers.image.source="https://github.com/alumet-dev/alumet" \
 	org.opencontainers.image.version="$ALUMET_VERSION" \
