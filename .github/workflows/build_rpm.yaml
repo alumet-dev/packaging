@@ -19,7 +19,7 @@ on:
         description: 'The tag used to checkout the correct version of source code'
         required: false
         type: string
-        default: ''
+        default: 'main'
 
 jobs:
   parsing:
@@ -42,7 +42,7 @@ jobs:
           echo "name=$name" >> $GITHUB_OUTPUT
           echo "Pipeline will build [$name] in version [${{ inputs.build-version }}] for the architecture [${{ inputs.target-architecture }}]" >> $GITHUB_STEP_SUMMARY
 
-  packaging:
+  rpm-packaging:
     runs-on: ubuntu-latest
     continue-on-error: true
     needs:
@@ -66,7 +66,7 @@ jobs:
         with:
           repository: alumet-dev/packaging
           fetch-tags: 'true'
-          ref: 'ci/create-rpm-package'
+          ref: 'main'
           path: 'packaging'
 
       - name: Install Rust
@@ -116,10 +116,10 @@ jobs:
           path: |
             ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.rpm
 
-  testing:
+  rpm-testing:
     runs-on: ubuntu-latest
     needs:
-      - packaging
+      - rpm-packaging
     strategy:
       fail-fast: false
       matrix:
