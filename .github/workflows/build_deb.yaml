@@ -77,27 +77,18 @@ jobs:
           echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
           echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
           echo "ALUMET_DIR=${{ inputs.name }}-${{ inputs.version }}" >> $GITHUB_ENV
+          echo "DEBIAN_FRONTEND=noninteractive" >> $GITHUB_ENV
 
       # Installation of dependencies required for the package compilation
       - name: Install dependencies
         shell: bash
         run: |
-          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential devscripts debhelper protobuf-compiler libssl-dev pkg-config
+          apt-get update && apt-get install -y build-essential devscripts debhelper protobuf-compiler libssl-dev pkg-config
 
       # Rename the deb path with correct version before to enter in it
       - name: Alumet source code downloading from GitHub repository
         run: |
-          echo $(pwd)
-          ls -al
-          base=$(find . -maxdepth 1 -type d -name "deb")
-          if [ -d "$base" ]; then
-              if [ ! -d "${{ env.ALUMET_DIR }}" ]; then
-                  mv -f "$base" "${{ env.ALUMET_DIR }}"
-              fi
-          else
-              echo "::error:: No directory '${{ env.ALUMET_DIR }}' found."
-              exit 1
-          fi
+          mv -f "deb" "${{ env.ALUMET_DIR }}" || (echo "::error:: No directory '${{ env.ALUMET_DIR }}' found." && exit 1)
 
       - uses: actions/checkout@v4
         with:
@@ -114,21 +105,24 @@ jobs:
 
       - name: Compile Alumet
         run: |
-          . "$HOME/.cargo/env"
+          . ${{ env.CARGO_ENV_PATH}}
           cd ${{ env.ALUMET_DIR }}/alumet/agent/
-          mkdir -p $GITHUB_WORKSPACE/bin/
-          CARGO_TARGET_DIR=$GITHUB_WORKSPACE/bin/ ALUMET_AGENT_RELEASE=true cargo build --release -p alumet-agent --bins --all-features
-          cp $GITHUB_WORKSPACE/bin/release/alumet-agent $GITHUB_WORKSPACE/${{ env.ALUMET_DIR }}/usr/lib/
+          mkdir -p ${{ env.ALUMET_DIR }}/bin/
+          CARGO_TARGET_DIR=${{ env.ALUMET_DIR }}/bin/ ALUMET_AGENT_RELEASE=true cargo build --release -p alumet-agent --bins --all-features
+          cp ${{ env.ALUMET_DIR }}/bin/release/alumet-agent $GITHUB_WORKSPACE/${{ env.ALUMET_DIR }}/usr/lib/
 
       - name: Create config file for Alumet
         run: |
-          . "$HOME/.cargo/env"
           mkdir -p ${{ env.ALUMET_DIR }}/etc/alumet/
           ALUMET_CONFIG=${{ env.ALUMET_DIR }}/etc/alumet/alumet-config.toml ./${{ env.ALUMET_DIR }}/usr/lib/alumet-agent --plugins csv,perf,procfs,socket-control config regen
 
       - name: Grant rights
         run: |
-          cd ${{ env.ALUMET_DIR }}
+          echo $(pwd)
+          ls -al .
+          cd $GITHUB_WORKSPACE/${{ env.ALUMET_DIR }}
+          echo $(pwd)
+          ls -al .
           chmod 755 usr/lib/alumet-agent
           chmod 755 usr/bin/alumet-agent
           chmod 644 etc/alumet/alumet-config.toml
@@ -212,8 +206,10 @@ jobs:
 
       - name: Install DEBs
         run: |
+          echo "DEBIAN_FRONTEND=noninteractive" >> $GITHUB_ENV
           apt-get update
           deb_file=$(find ${{ steps.download_deb.outputs.download-path }} -name "*.deb" -print -quit)
+          echo ${deb_file}
           apt-get install -y curl
           apt-get install -y "$deb_file"
 
