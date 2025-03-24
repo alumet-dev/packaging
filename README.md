@@ -10,9 +10,9 @@ In this repository you can find files and documentation about the creation of:
 - DEB packages
 - Container image
 
-You can access the documentation to:
+You can access the documentation of:
 
-- Use the workflows [here](./docs/README.md)
-- RPM [here](./rpm/README.md)
-- DEB [here](./README.md)
+- [The GitHub workflows](./docs/README.md)
+- [RPM package](./rpm/README.md)
+- [DEB package](./deb/README.md)
 - Container image [here](./README.md)

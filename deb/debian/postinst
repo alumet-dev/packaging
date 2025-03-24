@@ -1,9 +1,27 @@
 #!/bin/bash
-
+set -eu
 BIN="/usr/lib/alumet-agent"
 
-setcap 'cap_sys_nice+ep cap_perfmon=ep' $BIN
+# Get the kernel version
+KERNEL_VERSION=$(uname -r)
+KERNEL_MAJOR=$(echo "$KERNEL_VERSION" | cut -d'.' -f1)
+KERNEL_MINOR=$(echo "$KERNEL_VERSION" | cut -d'.' -f2)
 
-echo -e "\e[33mWARNING\e[0m :Some Alumet features require system modifications. If you have any problems, please refer to the documentation."
+if ! [[ "$KERNEL_MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$KERNEL_MINOR" =~ ^[0-9]+$ ]]; then
+    echo "Error: KERNEL_MAJOR or KERNEL_MINOR is not a valid integer."
+    echo "KERNEL_MAJOR: $KERNEL_MAJOR; KERNEL_MINOR: $KERNEL_MINOR"
+    exit 1  # Exit or handle as needed
+fi
 
-exit 0
+# Add capabilities to alumet binary:
+# - if Linux >= 5.8, CAP_SYS_NICE and CAP_PERMON
+# - else, CAP_SYS_NICE and CAP_SYS_ADMIN
+if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 8 ]; }; then
+    # Old versions of setcap don't recognize cap_perfmon even on recent kernels.
+    # Use its numeric value instead. See https://bugs.launchpad.net/ubuntu/+source/libcap/+bug/1934608
+    setcap 'cap_perfmon=ep cap_sys_nice=ep' "$BIN" || setcap '38=ep cap_sys_nice=ep' "$BIN"
+else
+    setcap 'cap_sys_admin=ep cap_sys_nice=ep' "$BIN"
+fi
+
+echo -e "\e[33mWARNING\e[0m: Some Alumet features require system modifications. If you have any problems, please refer to the documentation."

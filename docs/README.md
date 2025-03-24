@@ -2,39 +2,50 @@
 
 ## Table of Contents <!-- omit in toc -->
 
-- [Use the reusable workflow to build RPMs](#use-the-reusable-workflow-to-build-rpms)
+- [About version numbers](#about-version-numbers)
+- [Workflows](#workflows)
   - [build\_rpm.yaml](#build_rpmyaml)
-    - [Inputs](#inputs)
-    - [Example of usage](#example-of-usage)
+  - [build\_deb.yaml](#build_debyaml)
 
-## Use the reusable workflow to build RPMs
+## About version numbers
+
+Version numbers are "normalized" by the workflows.
+In particular, hyphens `-` are replaced with tildes `~` so that a version number like `0.8.0-d89b24f` is turned into `0.8.0~d89b24f`, which is considered to be OLDER than `0.8.0`.
+
+## Workflows
 
 ### build_rpm.yaml
 
-Build RPM for specified architecture and version
-  
-#### Inputs
+Build an RPM package for specified architecture and version.
 
-|        Name         |  Type  | Default value | Required |
-| :-----------------: | :----: | :-----------: | :------: |
-| target-architecture | string |     true      |    ✅    |
-|    build-version    | string |     true      |    ✅    |
-|   release-version   | string |     true      |    ✅    |
-|         tag         | string |     '  '      |    ❌    |
-
-#### Example of usage
+Example:
 
 ```yaml
 jobs:
   rpm:
     uses: ./.github/workflows/build_rpm.yaml
     with:
-      target-architecture: x86_64
-      build-version: 0.6.1
+      arch: x86_64
+      version: 0.6.1
       release-version: 1
       tag: v0.5.0
 ```
 
-When compiled for fedora 40 for x86_64 architecture, with this input,
-the resulting package will be
-`alumet-agent-0.6.1-1.fc40.x86_64.rpm`
+When compiled for fedora 40 for x86_64 architecture, with this input, the resulting package will be `alumet-agent-0.6.1-1.fc40.x86_64.rpm`.
+
+### build_deb.yaml
+
+Build a DEB package.
+
+Example:
+
+```yaml
+jobs:
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    with:
+      arch: amd64
+      version: 0.6.1
+      revision: 1
+      tag: v0.5.0
+```

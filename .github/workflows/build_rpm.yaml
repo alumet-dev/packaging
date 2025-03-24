@@ -3,50 +3,36 @@ name: Build RPM pipeline
 on:
   workflow_call:
     inputs:
-      target-architecture:
-        description: 'What is the architecture we want to build for'
+      arch:
+        description: "Architecture we want to build for"
         required: true
         type: string
-      build-version:
-        description: 'What is the version used to build and tag the RPMs'
+
+      version:
+        description: "Application version (version of the alumet agent)"
         required: true
         type: string
+
       release-version:
-        description: 'What is the release version used to build and tag the RPMs'
+        description: "Package release number (increase it when you update the package with the same app version)"
         required: true
         type: string
+
       tag:
-        description: 'The tag used to checkout the correct version of source code'
+        description: "The tag used to checkout the correct version of source code"
         required: false
         type: string
         default: 'main'
 
+      rust-version:
+        description: "Version of Rust to compile Alumet with"
+        type: string
+        default: '1.85.1'
+
 jobs:
-  parsing:
-    runs-on: ubuntu-latest
-    outputs:
-      name: ${{ steps.params.outputs.name }}
-    steps:
-
-      - uses: actions/checkout@v4
-        with:
-          repository: alumet-dev/packaging
-          fetch-tags: 'true'
-          ref: 'main'
-          path: 'packaging'
-
-      - name: Parse Alumet package name
-        id: params
-        run: |
-          name=$(awk '/Name/ { print $2; exit }' packaging/rpm/specs/alumet.spec)
-          echo "name=$name" >> $GITHUB_OUTPUT
-          echo "Pipeline will build [$name] in version [${{ inputs.build-version }}] for the architecture [${{ inputs.target-architecture }}]" >> $GITHUB_STEP_SUMMARY
-
   rpm-packaging:
     runs-on: ubuntu-latest
     continue-on-error: true
-    needs:
-      - parsing
     strategy:
       fail-fast: false
       matrix:
@@ -57,35 +43,45 @@ jobs:
           - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
           - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
     env:
-      name: ${{ needs.parsing.outputs.name }}
+      pkg_name: alumet-agent
     container:
       image: ${{ matrix.os.base-image }}
     steps:
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          dnf install --setopt=install_weak_deps=False -y nodejs sudo
+
+      # replace some forbidden characters with ~
+      # also replace - by ~ because we want 1.2.3-defbcda to be sorted BEFORE 1.2.3
+      - name: Normalize version number
+        run: |
+          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          echo "PKG_VERSION=$PKG_VERSION"
 
       - uses: actions/checkout@v4
         with:
           repository: alumet-dev/packaging
-          fetch-tags: 'true'
-          ref: 'main'
+          fetch-tags: true
           path: 'packaging'
+          fetch-depth: 1
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y --profile minimal --default-toolchain ${{ inputs.rust-version }}
 
-      - name: Install RPM on Fedora
+      - name: Install Fedora dependencies
         if: contains(matrix.os.base-image, 'fedora')
-        run: sudo dnf install -y rpm-build cargo-rpm-macros openssl-devel
+        run: sudo dnf install --setopt=install_weak_deps=False -y rpm-build openssl-devel gcc git
 
-      - name: Install RPM on other than Fedora
+      - name: Install non-Fedora dependencies
         if: ${{ ! contains(matrix.os.base-image, 'fedora') }}
         run: |
-          yum install -y --allowerasing unzip rpm-build openssl-devel curl gcc
+          yum install -y --allowerasing unzip rpm-build openssl-devel curl gcc git
 
-      - name: Setup for alumet
-        run: |
-          mkdir -p alumet
-          mkdir -p /etc/alumet
+      - name: Setup for alumet sources
+        run: mkdir -p alumet
 
       - name: Checkout alumet repo
         uses: actions/checkout@v4
@@ -93,28 +89,36 @@ jobs:
           repository: alumet-dev/alumet
           path: "alumet"
           ref: '${{ inputs.tag }}'
+          fetch-depth: 1
+          fetch-tags: true
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          cache-targets: "alumet-agent"
+      - name: Compile Alumet agent
+        working-directory: alumet
+        run: |
+          . "$HOME/.cargo/env"
+          bin=$(pwd)/bin
+          mkdir "$bin"
+          CARGO_TARGET_DIR="$bin" ALUMET_AGENT_RELEASE=true RUSTFLAGS="-Awarnings" cargo build --release -p alumet-agent
+          cp "$bin/release/alumet-agent" ../packaging/rpm/SOURCES/alumet-agent
 
       - name: Build RPM package
         id: build-rpm-package
         env:
           build_dir: "$(pwd)/build"
+          source_dir: "$(pwd)/SOURCES"
+        working-directory: packaging/rpm
         run: |
-          export PATH=$PATH:$HOME/.cargo/bin/
-          mkdir -p ${{ env.build_dir }}/SOURCES
-          tar --exclude=".[^/]*" --exclude="./build" --transform 's|.|alumet|' -zcvf ${{ env.build_dir }}/SOURCES/alumet-agent.tar.gz .
-          rpmbuild -ba -vv --define "_topdir ${{ env.build_dir }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "version ${{ inputs.build-version }}" --define "arch ${{ inputs.target-architecture }}" packaging/rpm/specs/alumet.spec
+          rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "arch ${{ inputs.arch }}" SPECS/alumet.spec
+          export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.rpm"
+          echo "PACKAGE_FILENAME=$FILENAME" >> $GITHUB_OUTPUT
+          echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact alumet-agent
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.rpm
-          path: |
-            ./build/RPMS/${{ inputs.target-architecture }}/${{ env.name }}-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.rpm
+          name: ${{ steps.build-rpm-package.outputs.PACKAGE_FILENAME }}
+          path: ${{ steps.build-rpm-package.outputs.PACKAGE_PATH }}
+          compression-level: 0  # the package is already compressed
 
   rpm-testing:
     runs-on: ubuntu-latest
@@ -134,13 +138,17 @@ jobs:
       options: --cap-add=SYS_NICE --cap-add=PERFMON
 
     steps:
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          dnf install --setopt=install_weak_deps=False -y nodejs sudo
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           repository: 'alumet-dev/packaging'
           fetch-depth: 1
           path: 'packaging'
-          ref: 'main'
 
       - name: Download RPM artifact
         id: download_rpm

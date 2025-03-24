@@ -1,39 +1,32 @@
 ---
-# This file is used to test the correct packaging of Alumet in the RPM format.
-# It call the reusable workflow ./.github/workflows/build_rpm.yaml with
-# the following default value:
-# target-architecture: x86_64
-# It also use the input provided to fill
-# the build-version and release-version fields.
+# This file is used to test the packaging workflows.
+# This "Main pipeline" can be triggered manually.
 name: Main pipeline
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version of package'
+        description: Application version
         type: string
         required: false
         default: '0.0.0'
-      release:
-        description: 'The release number'
+      revision:
+        description: Package revision/release number
         required: false
         type: number
         default: 1
-  push:
 
 jobs:
-  # rpm:
-  #   uses: ./.github/workflows/build_rpm.yaml
-  #   with:
-  #     target-architecture: x86_64
-  #     build-version: ${{ github.event.inputs.version }}
-  #     release-version: ${{ github.event.inputs.release }}
-      
+  rpm:
+    uses: ./.github/workflows/build_rpm.yaml
+    with:
+      arch: x86_64
+      version: ${{ github.event.inputs.version }}
+      release-version: ${{ github.event.inputs.revision }}
+
   deb:
     uses: ./.github/workflows/build_deb.yaml
     with:
-      arch: "amd64"
-      name: "alumet"
-      version: 0.8
-      revision: 1
-      urgency: "medium"
+      arch: amd64
+      version: ${{ github.event.inputs.version }}
+      revision: ${{ github.event.inputs.revision }}
