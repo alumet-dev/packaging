@@ -1,0 +1,18 @@
+Source: alumet-agent
+Maintainer: Alumet maintainers <maintainers@alumet.dev>
+Section: misc
+Priority: optional
+Standards-Version: 4.7.2 # the version of the policy that we follow https://www.debian.org/doc/debian-policy
+Build-Depends: debhelper-compat (= 12)
+Homepage: https://alumet.dev
+Vcs-Browser: https://github.com/alumet-dev/alumet
+Vcs-Git: https://github.com/alumet-dev/alumet.git
+
+Package: alumet-agent
+Architecture: amd64
+# shlibs:Depends finds the packages that provide the dependencies of the agent binary
+# libcap2-bin provides the setcap command that we need in postinst
+Depends: ${shlibs:Depends}, libcap2-bin
+Description: Alumet agent, a tool for measuring energy and performance
+ Customizable and efficient tool for measuring the energy consumption and
+ performance metrics of software on HPC, Cloud and Edge devices.
