@@ -11,7 +11,7 @@ LABEL org.opencontainers.image.authors="maintainers@alumet.dev" \
 	org.opencontainers.image.title="alumet-agent based on Fedora OS" \
 	org.opencontainers.image.description="Alumet is a modular tool that measures energy consumption and performance metrics. "
 
-ARG ARTIFACT_FILE=alumet-agent-0.8.0-1.fedora.42.x86_64.rpm
+ARG ARTIFACT_FILE=alumet-agent-0.8.0-1.fc42.x86_64.rpm
 COPY $ARTIFACT_FILE /tmp/
 
 RUN dnf install -y /tmp/$ARTIFACT_FILE && \
