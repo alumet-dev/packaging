@@ -31,11 +31,12 @@ jobs:
           - { name: ubi8.3,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi8-micro:8.10, builder-image: registry.access.redhat.com/ubi8:8.10, libssl-version: 1.1, libcrypto-version: 1.1 }
           - { name: fc42,         type: rpm, path: "docker/fedora",  base-image: fedora:42 }
           - { name: debian_12,    type: deb, path: "docker/debian" , base-image: debian:12-slim }
-          - { name: ubuntu_25.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:25.04 }
+          - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
-        repository: alumet-dev/packaging
+        with:
+          repository: alumet-dev/packaging
 
       - name: Define the dependency artifact name (RPM)
         if: matrix.os.type == 'rpm'
@@ -100,14 +101,15 @@ jobs:
       DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.target-architecture }}.docker.tar
     strategy:
       matrix:
-        os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_25.04"]
+        os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_24.04"]
     needs:
       - packaging
 
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
-        repository: alumet-dev/packaging
+        with:
+          repository: alumet-dev/packaging
 
       - name: Create docker artifacts directory
         run: mkdir docker-artifacts
