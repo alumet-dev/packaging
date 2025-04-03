@@ -33,6 +33,13 @@ jobs:
           - { name: debian_12,    type: deb, path: "docker/debian" , base-image: debian:12-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
     steps:
+      # See deb and rpm steps.
+      - name: Normalize version number
+        run: |
+          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          echo "PKG_VERSION=$PKG_VERSION"
+
       - name: Checkout the repository
         uses: actions/checkout@v4
         with:
@@ -40,11 +47,11 @@ jobs:
 
       - name: Define the dependency artifact name (RPM)
         if: matrix.os.type == 'rpm'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
+        run: echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
 
       - name: Define the dependency artifact name (DEB)
         if: matrix.os.type == 'deb'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ inputs.version }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
+        run: echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ env.PKG_VERSION }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
 
       - name: Create the dependency artifacts directory
         run: mkdir -p build/deps-artifacts

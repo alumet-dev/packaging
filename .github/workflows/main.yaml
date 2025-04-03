@@ -30,3 +30,13 @@ jobs:
       arch: amd64
       version: ${{ github.event.inputs.version }}
       revision: ${{ github.event.inputs.revision }}
+
+  docker:
+    uses: ./.github/workflows/build_docker.yaml
+    with:
+      arch: x86_64
+      version: ${{ github.event.inputs.version }}
+      release-version: ${{ github.event.inputs.revision }}
+    needs:
+      - rpm
+      - deb
