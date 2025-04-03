@@ -3,11 +3,11 @@ name: Build Docker images pipeline
 on:
   workflow_call:
     inputs:
-      target-architecture:
+      arch:
         description: 'What is the architecture we want to build for'
         required: true
         type: string
-      build-version:
+      version:
         description: 'What is the version used to build and tag the RPMs'
         required: true
         type: string
@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      ARCH: ${{ (inputs.target-architecture == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || inputs.target-architecture }}
-      OUTPUT_ARTIFACT_NAME: alumet-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.target-architecture }}.docker.tar
+      ARCH: ${{ (inputs.arch == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || inputs.arch }}
+      OUTPUT_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar
     strategy:
       matrix:
         os:
@@ -40,11 +40,11 @@ jobs:
 
       - name: Define the dependency artifact name (RPM)
         if: matrix.os.type == 'rpm'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
+        run: echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
 
       - name: Define the dependency artifact name (DEB)
         if: matrix.os.type == 'deb'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ inputs.build-version }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
+        run: echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ inputs.version }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
 
       - name: Create the dependency artifacts directory
         run: mkdir -p build/deps-artifacts
@@ -63,7 +63,7 @@ jobs:
 
       - name: Set up image tags
         run: |
-          TAGS="ghcr.io/${{ github.repository_owner }}/alumet-agent:${{ inputs.build-version }}-${{ inputs.release-version }}_${{ matrix.os.name }}"
+          TAGS="ghcr.io/${{ github.repository_owner }}/alumet-agent:${{ inputs.version }}-${{ inputs.release-version }}_${{ matrix.os.name }}"
           if [ "${{ matrix.os.latest_tag }}" == "true" ]; then
             TAGS="$TAGS,ghcr.io/${{ github.repository_owner }}/alumet-agent:latest"
           fi
@@ -77,7 +77,7 @@ jobs:
           push: false
           file: ${{ matrix.os.path }}/Dockerfile
           build-args: |
-            ALUMET_VERSION=${{ inputs.build-version }}
+            ALUMET_VERSION=${{ inputs.version }}
             BUILDER_IMAGE=${{ matrix.os.builder-image }}
             BASE_IMAGE=${{ matrix.os.base-image }}
             ARTIFACT_FILE=${{ env.DEPS_ARTIFACT_FILE }}
@@ -98,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.build-version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.target-architecture }}.docker.tar
+      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.arch }}.docker.tar
     strategy:
       matrix:
         os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_24.04"]
