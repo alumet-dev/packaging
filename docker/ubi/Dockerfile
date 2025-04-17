@@ -31,7 +31,9 @@ COPY --from=builder /lib64/libz.so.${LIBZ_VERSION} /lib64/
 RUN echo "alumet:x:1000:" >> /etc/group && \
     echo "alumet:x:1000:1000::/home/alumet:/sbin/nologin" >> /etc/passwd && \
 	mkdir -p /app /home/alumet && \
-	chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app # chown makes alumet-agent bin to be duplicated by docker which increase image size
+	# chown makes alumet-agent bin to be duplicated by docker which increase image size 
+	chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app ; \
+    setcap "cap_sys_nice+ep cap_perfmon=ep" "/usr/bin/alumet-agent"
 
 USER alumet
 WORKDIR /app

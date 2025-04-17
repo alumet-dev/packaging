@@ -18,6 +18,12 @@ file:
     mode: "0755"
 
 command:
+  'check alumet-agent capabilities':
+    exec: 'getcap /usr/bin/alumet-agent'
+    exit-status: 0
+    stdout: |
+      /usr/bin/alumet-agent cap_sys_nice,cap_perfmon=ep
+
   'run alumet-agent':
     exec: "/usr/bin/alumet-agent --config /etc/alumet/alumet-config.toml --plugins csv,perf,procfs,socket-control exec -- sleep 1 && [ -s alumet-output.csv ]"
     exit-status: 0
