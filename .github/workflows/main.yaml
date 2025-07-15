@@ -10,6 +10,11 @@ on:
         type: string
         required: false
         default: '0.0.0'
+      tag:
+        description: Tag to checkout in alumet repo
+        type: string
+        required: false
+        default: 'main'
       revision:
         description: Package revision/release number
         required: false
@@ -18,25 +23,35 @@ on:
 
 jobs:
   rpm:
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
     uses: ./.github/workflows/build_rpm.yaml
     with:
-      arch: x86_64
+      arch: ${{ matrix.arch }}
       version: ${{ github.event.inputs.version }}
+      tag: ${{ github.event.inputs.tag }}
       release-version: ${{ github.event.inputs.revision }}
-
-  deb:
-    uses: ./.github/workflows/build_deb.yaml
-    with:
-      arch: amd64
-      version: ${{ github.event.inputs.version }}
-      revision: ${{ github.event.inputs.revision }}
+  # deb:
+  #   strategy:
+  #     matrix:
+  #       arch: [x86_64]
+  #   uses: ./.github/workflows/build_deb.yaml
+  #   with:
+  #     arch: ${{ matrix.arch }}
+  #     tag: ${{ github.event.inputs.tag }}
+  #     version: ${{ github.event.inputs.version }}
+  #     revision: ${{ github.event.inputs.revision }}
 
   docker:
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
     uses: ./.github/workflows/build_docker.yaml
     with:
-      arch: x86_64
+      arch: ${{ matrix.arch }}
       version: ${{ github.event.inputs.version }}
       release-version: ${{ github.event.inputs.revision }}
     needs:
       - rpm
-      - deb
+      # - deb

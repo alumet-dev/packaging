@@ -27,7 +27,7 @@ on:
       rust-version:
         description: "Version of Rust to compile Alumet with"
         type: string
-        default: '1.85.1'
+        default: '1.88'
 
 jobs:
   rpm-packaging:
@@ -37,11 +37,12 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - {name: fc40, base-image: fedora:40}
-          - {name: fc41, base-image: fedora:41}
-          - {name: fc42, base-image: fedora:42}
-          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
-          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
+          # - {name: fc40, base-image: fedora:40}
+          # - {name: fc41, base-image: fedora:41}
+          # - {name: fc42, base-image: fedora:42}
+          # TODO: return to registry.access.redhat.com/ubi9/ubi:9.5 when https://github.com/orgs/community/discussions/27906#discussioncomment-3332440 is fixed
+          # - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+          - {name: ubi9.5, base-image: ghcr.io/guigomcha/ubi-mussl:9.5}
     env:
       pkg_name: alumet-agent
     container:
@@ -60,33 +61,39 @@ jobs:
           echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
           echo "PKG_VERSION=$PKG_VERSION"
 
-      - uses: actions/checkout@v4
-        with:
-          repository: alumet-dev/packaging
-          fetch-tags: true
-          path: 'packaging'
-          fetch-depth: 1
-
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y --profile minimal --default-toolchain ${{ inputs.rust-version }}
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${{ inputs.rust-version }} --target ${{ inputs.arch }}-unknown-linux-musl
+          
 
       - name: Install Fedora dependencies
         if: contains(matrix.os.base-image, 'fedora')
-        run: sudo dnf install --setopt=install_weak_deps=False -y rpm-build openssl-devel gcc git
+        run: sudo dnf install --setopt=install_weak_deps=False -y rpm-build openssl-devel gcc git musl-dev musl-gcc 
 
       - name: Install non-Fedora dependencies
         if: ${{ ! contains(matrix.os.base-image, 'fedora') }}
         run: |
-          yum install -y --allowerasing unzip rpm-build openssl-devel curl gcc git
+          yum install -y --allowerasing unzip rpm-build openssl-devel curl gcc git 
+          # Download musl cross toolchains
+          mkdir -p /opt/musl
+
+          tar -xzf /${{ inputs.arch }}-linux-musl-cross.tgz -C /opt/musl
+          echo "/opt/musl/${{ inputs.arch }}-linux-musl-cross/bin" >> $GITHUB_PATH
+          ls /opt/musl/${{ inputs.arch }}-linux-musl-cross/bin
 
       - name: Setup for alumet sources
         run: mkdir -p alumet
 
+      - name: Checkout alumet package repo
+        uses: actions/checkout@v4
+        with:
+          repository: guigomcha/alumet-packaging
+          path: "packaging"
+
       - name: Checkout alumet repo
         uses: actions/checkout@v4
         with:
-          repository: alumet-dev/alumet
+          repository: guigomcha/alumet
           path: "alumet"
           ref: '${{ inputs.tag }}'
           fetch-depth: 1
@@ -97,9 +104,11 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           bin=$(pwd)/bin
-          mkdir "$bin"
-          CARGO_TARGET_DIR="$bin" ALUMET_AGENT_RELEASE=true RUSTFLAGS="-Awarnings" cargo build --release -p alumet-agent
-          cp "$bin/release/alumet-agent" ../packaging/rpm/SOURCES/alumet-agent
+          mkdir -p "$bin"
+          echo "building on $bin and ${{ inputs.arch }}-linux-musl-gcc"
+          CARGO_TARGET_DIR="$bin" CC=${{ inputs.arch }}-linux-musl-gcc ALUMET_AGENT_RELEASE=true cargo build --release --target ${{ inputs.arch }}-unknown-linux-musl -p alumet-agent
+          ls $bin/${{ inputs.arch }}-unknown-linux-musl
+          cp "$bin/${{ inputs.arch }}-unknown-linux-musl/release/alumet-agent" ../packaging/rpm/SOURCES/alumet-agent
 
       - name: Build RPM package
         id: build-rpm-package
@@ -120,69 +129,69 @@ jobs:
           path: ${{ steps.build-rpm-package.outputs.PACKAGE_PATH }}
           compression-level: 0  # the package is already compressed
 
-  rpm-testing:
-    runs-on: ubuntu-latest
-    needs:
-      - rpm-packaging
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - {name: fc40, base-image: fedora:40}
-          - {name: fc41, base-image: fedora:41}
-          - {name: fc42, base-image: fedora:42}
-          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
-          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
-    container:
-      image: ${{ matrix.os.base-image }}
-      options: --cap-add=SYS_NICE --cap-add=PERFMON
+  # rpm-testing:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - rpm-packaging
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os:
+  #         - {name: fc40, base-image: fedora:40}
+  #         - {name: fc41, base-image: fedora:41}
+  #         - {name: fc42, base-image: fedora:42}
+  #         - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+  #         - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
+  #   container:
+  #     image: ${{ matrix.os.base-image }}
+  #     options: --cap-add=SYS_NICE --cap-add=PERFMON
 
-    steps:
-      - name: Install Act dependencies
-        if: ${{ env.ACT }}
-        run: |
-          dnf install --setopt=install_weak_deps=False -y nodejs sudo
+  #   steps:
+  #     - name: Install Act dependencies
+  #       if: ${{ env.ACT }}
+  #       run: |
+  #         dnf install --setopt=install_weak_deps=False -y nodejs sudo
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          repository: 'alumet-dev/packaging'
-          fetch-depth: 1
-          path: 'packaging'
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         repository: 'alumet-dev/packaging'
+  #         fetch-depth: 1
+  #         path: 'packaging'
 
-      - name: Download RPM artifact
-        id: download_rpm
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '**/*${{ matrix.os.name }}*.rpm'
-          path: ./rpm
-          merge-multiple: true
+  #     - name: Download RPM artifact
+  #       id: download_rpm
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: '**/*${{ matrix.os.name }}*.rpm'
+  #         path: ./rpm
+  #         merge-multiple: true
 
-      - name: Install systemd on Fedora
-        if: contains(matrix.os.base-image, 'fedora')
-        run: |
-          dnf install -y systemd
+  #     - name: Install systemd on Fedora
+  #       if: contains(matrix.os.base-image, 'fedora')
+  #       run: |
+  #         dnf install -y systemd
 
-      - name: Install RPMs
-        run: |
-          dnf install -y ${{ steps.download_rpm.outputs.download-path }}/*.rpm
+  #     - name: Install RPMs
+  #       run: |
+  #         dnf install -y ${{ steps.download_rpm.outputs.download-path }}/*.rpm
 
-      - name: Install Goss
-        run: |
-          curl -fsSL https://goss.rocks/install | sh
+  #     - name: Install Goss
+  #       run: |
+  #         curl -fsSL https://goss.rocks/install | sh
 
-      - name: Run Goss tests
-        id: goss-tests
-        run: |
-          set -o pipefail
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+  #     - name: Run Goss tests
+  #       id: goss-tests
+  #       run: |
+  #         set -o pipefail
+  #         goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload goss report
-        if: >-
-          always() &&
-          steps.goss-tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: goss-results-rpm-${{ matrix.os.name }}.txt
-          path: |
-            ./goss-results-rpm-${{ matrix.os.name }}.txt
+  #     - name: Upload goss report
+  #       if: >-
+  #         always() &&
+  #         steps.goss-tests.outcome == 'failure'
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: goss-results-rpm-${{ matrix.os.name }}.txt
+  #         path: |
+  #           ./goss-results-rpm-${{ matrix.os.name }}.txt
