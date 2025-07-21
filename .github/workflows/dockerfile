@@ -1,0 +1,5 @@
+FROM registry.access.redhat.com/ubi9/ubi:9.5
+
+RUN yum install -y --allowerasing curl
+RUN curl -LO https://musl.cc/x86_64-linux-musl-cross.tgz \
+  && curl -LO https://musl.cc/aarch64-linux-musl-cross.tgz

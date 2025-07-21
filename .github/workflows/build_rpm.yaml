@@ -63,12 +63,11 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${{ inputs.rust-version }} --target ${{ inputs.arch }}-unknown-linux-musl
-          
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.88 --target aarch64-unknown-linux-musl
 
       - name: Install Fedora dependencies
         if: contains(matrix.os.base-image, 'fedora')
-        run: sudo dnf install --setopt=install_weak_deps=False -y rpm-build openssl-devel gcc git musl-dev musl-gcc 
+        run: sudo dnf install --setopt=install_weak_deps=False -y rpm-build openssl-devel gcc git musl-gcc gcc-aarch64-linux-gnu
 
       - name: Install non-Fedora dependencies
         if: ${{ ! contains(matrix.os.base-image, 'fedora') }}
@@ -77,9 +76,9 @@ jobs:
           # Download musl cross toolchains
           mkdir -p /opt/musl
 
-          tar -xzf /${{ inputs.arch }}-linux-musl-cross.tgz -C /opt/musl
-          echo "/opt/musl/${{ inputs.arch }}-linux-musl-cross/bin" >> $GITHUB_PATH
-          ls /opt/musl/${{ inputs.arch }}-linux-musl-cross/bin
+          tar -xzf /aarch64-linux-musl-cross.tgz -C /opt/musl
+          echo "/opt/musl/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+          ls /opt/musl/aarch64-linux-musl-cross/bin
 
       - name: Setup for alumet sources
         run: mkdir -p alumet
@@ -105,10 +104,16 @@ jobs:
           . "$HOME/.cargo/env"
           bin=$(pwd)/bin
           mkdir -p "$bin"
-          echo "building on $bin and ${{ inputs.arch }}-linux-musl-gcc"
-          CARGO_TARGET_DIR="$bin" CC=${{ inputs.arch }}-linux-musl-gcc ALUMET_AGENT_RELEASE=true cargo build --release --target ${{ inputs.arch }}-unknown-linux-musl -p alumet-agent
-          ls $bin/${{ inputs.arch }}-unknown-linux-musl
-          cp "$bin/${{ inputs.arch }}-unknown-linux-musl/release/alumet-agent" ../packaging/rpm/SOURCES/alumet-agent
+          echo "building on $bin and aarch64-linux-musl-gcc"
+          CARGO_TARGET_DIR="$bin" CC=aarch64-linux-musl-gcc ALUMET_AGENT_RELEASE=true cargo build --release --target aarch64-unknown-linux-musl -p alumet-agent
+          ls $bin/aarch64-unknown-linux-musl
+          cp "$bin/aarch64-unknown-linux-musl/release/alumet-agent" ../packaging/rpm/SOURCES/alumet-agent
+
+# Install package needed
+sudo apt install gcc-aarch64-linux-gnu
+# Setup env var for cargo compilation
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc && export CC=aarch64-linux-gnu-gcc
+
 
       - name: Build RPM package
         id: build-rpm-package
@@ -117,10 +122,10 @@ jobs:
           source_dir: "$(pwd)/SOURCES"
         working-directory: packaging/rpm
         run: |
-          rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "arch ${{ inputs.arch }}" SPECS/alumet.spec
-          export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.rpm"
+          rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "arch aarch64" SPECS/alumet.spec
+          export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.aarch64.rpm"
           echo "PACKAGE_FILENAME=$FILENAME" >> $GITHUB_OUTPUT
-          echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> $GITHUB_OUTPUT
+          echo "PACKAGE_PATH=$(pwd)/build/RPMS/aarch64/$FILENAME" >> $GITHUB_OUTPUT
 
       - name: Upload artifact alumet-agent
         uses: actions/upload-artifact@v4
