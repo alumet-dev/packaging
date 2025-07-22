@@ -9,10 +9,7 @@ License:   EUPL-1.2
 Url:       https://github.com/alumet-dev/alumet
 BuildArch: %{arch}
 
-BuildRequires:  openssl-devel >= 3.0.0
-
-Requires: glibc >= 2.2.5
-Requires: openssl >= 3.0.0
+BuildRequires:  musl-tools >= 1.2.2
 Requires: libcap
 
 %description
@@ -65,5 +62,7 @@ else
 fi
 
 %changelog
+* Wed Jul 23 2025 Guillermo guillermo.gomezchavez@eviden.com - 0.0.2
+- Musl dependencies for cross-compilation
 * Wed Sep 18 2024 Cyprien cyprien.pelisse-verdoux@eviden.com - 0.0.1
 - Initial package
