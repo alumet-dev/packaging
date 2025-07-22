@@ -1,0 +1,187 @@
+---
+name: Build deb distributables
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: "Architecture we want to build for"
+        required: true
+        type: string
+
+      version:
+        description: "Application version (version of the alumet agent)"
+        required: true
+        type: string
+
+      revision:
+        description: "Package revision number (increase it when you update the package with the same app version)"
+        required: true
+        type: string
+
+      tag:
+        description: "The tag used to checkout the correct version of source code"
+        required: false
+        type: string
+        default: "main"
+
+      rust-version:
+        description: "Version of Rust to compile Alumet with"
+        type: string
+        default: '1.88'
+
+jobs:
+  deb-packaging:
+    runs-on: ubuntu-latest
+    env:
+      pkg_name: alumet-agent
+      ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || inputs.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          [
+            "debian:11",
+            "debian:12",
+            "ubuntu:20.04",
+            "ubuntu:22.04",
+            "ubuntu:24.04",
+          ]
+    container:
+      image: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential devscripts debhelper libssl-dev pkg-config 
+
+      - uses: actions/checkout@v4
+        with:
+          repository: guigomcha/alumet-packaging
+          ref: 16-cross-compilation-worflows
+          path: packaging
+      - name: Download bin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.arch }}-alumet-agent
+          path: ./packaging/bin/${{ inputs.arch }}
+          merge-multiple: true
+      - name: Download config artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: config-alumet-agent
+          path: ./packaging/bin/
+          merge-multiple: true
+      # replace some forbidden characters with ~
+      # also replace - by ~ because we want 1.2.3-defbcda to be sorted BEFORE 1.2.3
+      - name: Normalize version number
+        run: |
+          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          echo "PKG_VERSION=$PKG_VERSION"
+
+      - name: Setup GITHUB_ENV
+        run: |
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+
+      - name: Build debian package
+        working-directory: packaging/deb
+        run: |
+          cp ../bin/${{ inputs.arch }}/alumet-agent .
+          cp ../bin/alumet-config.toml .
+          PKG_VERSION=${{ env.PKG_VERSION }} PKG_REVISION=${{ inputs.revision }} ./build-package.sh 
+      
+      - name: Define final package file name
+        id: define_package_filename
+        run: |
+          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
+
+      - name: Rename package file
+        run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+        working-directory: packaging
+
+      # Run lintian with --fail-on error, but that option don't exist on old distribs.
+      # Lintian on Debian 11 has incorrect rules: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=992465.
+      - name: Check package against Debian rules
+        if: matrix.os != 'debian:11' && matrix.os != 'ubuntu:20.04'
+        run: lintian --fail-on error --suppress-tags unstripped-binary-or-object ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+        working-directory: packaging
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+          path: packaging/${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+          compression-level: 0  # the package is already compressed
+
+  deb-testing:
+    needs: deb-packaging
+    env:
+      pkg_name: alumet-agent
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - { name: "11", base-image: debian:11 }
+          - { name: "12", base-image: debian:12 }
+          - { name: "20.04", base-image: ubuntu:20.04 }
+          - { name: "22.04", base-image: ubuntu:22.04 }
+          - { name: "24.04", base-image: ubuntu:24.04 }
+
+    container:
+      image: ${{ matrix.os.base-image }}
+      options: --cap-add=SYS_NICE --cap-add=PERFMON
+
+    steps:
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install nodejs
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: "guigomcha/alumet-packaging"
+          ref: 16-cross-compilation-worflows
+          path: "packaging"
+
+      - name: Download DEB artifact
+        id: download_deb
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "**/*${{ matrix.os.name }}*.deb"
+          path: ./deb
+          merge-multiple: true
+
+      - name: Install DEBs
+        run: |
+          apt-get update
+          deb_file=$(find ${{ steps.download_deb.outputs.download-path }} -name "*.deb" -print -quit)
+          DEBIAN_FRONTEND=noninteractive apt-get install -y curl
+          DEBIAN_FRONTEND=noninteractive apt-get install -y "$deb_file"
+
+      - name: Install Goss
+        run: |
+          curl -fsSL https://goss.rocks/install | sh
+
+      - name: Run Goss tests
+        id: goss-tests
+        run: |
+          set -e pipefail
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload goss report
+        if: >-
+          always() &&
+          steps.goss-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: goss-results-deb-${{ matrix.os.name }}.txt
+          path: |
+            ./goss-results-deb-${{ matrix.os.name }}.txt

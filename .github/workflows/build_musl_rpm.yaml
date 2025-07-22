@@ -1,0 +1,174 @@
+---
+name: Build rpm distributables
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: "Architecture we want to build for"
+        required: true
+        type: string
+
+      version:
+        description: "Application version (version of the alumet agent)"
+        required: true
+        type: string
+
+      revision:
+        description: "Package revision number (increase it when you update the package with the same app version)"
+        required: true
+        type: string
+
+      tag:
+        description: "The tag used to checkout the correct version of source code"
+        required: false
+        type: string
+        default: "main"
+
+      rust-version:
+        description: "Version of Rust to compile Alumet with"
+        type: string
+        default: '1.88'
+
+jobs:
+  rpm-packaging:
+    runs-on: ubuntu-latest
+    env:
+      pkg_name: alumet-agent
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - {name: fc40, base-image: fedora:40}
+          - {name: fc41, base-image: fedora:41}
+          - {name: fc42, base-image: fedora:42}
+          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
+    container:
+      # We use musl to deliver to all platforms via deb and rpm
+      image: ubuntu:24.04
+
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: guigomcha/alumet-packaging
+          ref: 16-cross-compilation-worflows
+          path: packaging
+          
+      - name: Download bin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.arch }}-alumet-agent
+          path: ./packaging/bin/${{ inputs.arch }}
+          merge-multiple: true
+      - name: Download config artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: config-alumet-agent
+          path: ./packaging/bin/
+          merge-multiple: true
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y rpm build-essential curl
+      # replace some forbidden characters with ~
+      # also replace - by ~ because we want 1.2.3-defbcda to be sorted BEFORE 1.2.3
+      - name: Normalize version number
+        run: |
+          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          echo "PKG_VERSION=$PKG_VERSION"
+
+      - name: Build RPM package
+        id: build-rpm-package
+        env:
+          build_dir: "$(pwd)/build"
+          source_dir: "$(pwd)/SOURCES"
+        working-directory: packaging/rpm
+        run: |
+          cp ../bin/${{ inputs.arch }}/alumet-agent SOURCES/alumet-agent
+          cp ../bin/alumet-config.toml SOURCES/alumet-config.toml
+          rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.revision }}" --define "osr ${{ matrix.os.name }}" --define "arch ${{ inputs.arch }}" SPECS/alumet.spec
+          export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.revision }}.${{ matrix.os.name }}.${{ inputs.arch }}.rpm"
+          echo "PACKAGE_FILENAME=$FILENAME" >> $GITHUB_OUTPUT
+          echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact alumet-agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build-rpm-package.outputs.PACKAGE_FILENAME }}
+          path: ${{ steps.build-rpm-package.outputs.PACKAGE_PATH }}
+          compression-level: 0  # the package is already compressed
+
+  rpm-testing:
+    runs-on: ubuntu-latest
+    env:
+      pkg_name: alumet-agent
+    needs:
+      - rpm-packaging
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - {name: fc40, base-image: fedora:40}
+          - {name: fc41, base-image: fedora:41}
+          - {name: fc42, base-image: fedora:42}
+          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
+          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
+    container:
+      image: ${{ matrix.os.base-image }}
+      options: --cap-add=SYS_NICE --cap-add=PERFMON
+
+    steps:
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          dnf install --setopt=install_weak_deps=False -y nodejs sudo
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'guigomcha/alumet-packaging'
+          ref: 16-cross-compilation-worflows
+          path: 'packaging'
+
+      - name: Download RPM artifact
+        id: download_rpm
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '**/*${{ matrix.os.name }}*.rpm'
+          path: ./rpm
+          merge-multiple: true
+
+      - name: Install systemd on Fedora
+        if: contains(matrix.os.base-image, 'fedora')
+        run: |
+          dnf install -y systemd
+
+      - name: Install RPMs
+        run: |
+          dnf install -y ${{ steps.download_rpm.outputs.download-path }}/*.rpm
+
+      - name: Install Goss
+        run: |
+          curl -fsSL https://goss.rocks/install | sh
+
+      - name: Run Goss tests
+        id: goss-tests
+        run: |
+          set -o pipefail
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload goss report
+        if: >-
+          always() &&
+          steps.goss-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: goss-results-rpm-${{ matrix.os.name }}.txt
+          path: |
+            ./goss-results-rpm-${{ matrix.os.name }}.txt

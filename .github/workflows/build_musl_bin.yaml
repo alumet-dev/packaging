@@ -1,0 +1,116 @@
+---
+name: Build musl bin for cross-platform
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: "Architecture we want to build for"
+        required: true
+        type: string
+
+      version:
+        description: "Application version (version of the alumet agent)"
+        required: true
+        type: string
+
+      revision:
+        description: "Package revision number (increase it when you update the package with the same app version)"
+        required: true
+        type: string
+
+      tag:
+        description: "The tag used to checkout the correct version of source code"
+        required: false
+        type: string
+        default: "main"
+
+      rust-version:
+        description: "Version of Rust to compile Alumet with"
+        type: string
+        default: '1.88'
+
+jobs:
+  bin-packaging:
+    runs-on: ubuntu-latest
+    env:
+      pkg_name: alumet-agent
+    container:
+      # We use musl to deliver to all platforms via deb and rpm
+      image: ubuntu:24.04
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install nodejs
+
+      - uses: actions/checkout@v4
+        with:
+          repository: guigomcha/alumet-packaging
+          ref: 16-cross-compilation-worflows
+          path: packaging
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl build-essential devscripts debhelper libssl-dev pkg-config 
+          if [[ ${{ inputs.arch }} == "aarch64" ]]; then
+            apt-get install -y gcc-aarch64-linux-gnu
+          else
+            apt-get install -y musl-tools
+          fi
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs  | sh -s -- -y --profile minimal --default-toolchain ${{ inputs.rust-version }} --target ${{ inputs.arch }}-unknown-linux-musl
+
+      - name: Setup for alumet sources
+        run: mkdir -p alumet
+
+      - name: Checkout alumet repo
+        uses: actions/checkout@v4
+        with:
+          repository: alumet-dev/alumet
+          path: "alumet"
+          ref: "${{ inputs.tag }}"
+          fetch-depth: 1
+          fetch-tags: true
+
+      - name: Compile Alumet agent
+        working-directory: alumet
+        run: |
+          . "$HOME/.cargo/env"
+          bin=$(pwd)/bin
+          mkdir "$bin"
+          mkdir -p ../packaging/bin/${{ inputs.arch }}/
+          if [[ ${{ inputs.arch }} == "aarch64" ]]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc 
+            export CC=aarch64-linux-gnu-gcc
+          fi
+          CARGO_TARGET_DIR="$bin" ALUMET_AGENT_RELEASE=true RUSTFLAGS="-Awarnings"  cargo build --release -p alumet-agent --target ${{ inputs.arch }}-unknown-linux-musl
+          cp "$bin/${{ inputs.arch }}-unknown-linux-musl/release/alumet-agent" ../packaging/bin/${{ inputs.arch }}/
+          if [[ ${{ inputs.arch }} == "x86_64" ]]; then
+            # Generate the config file by executing the bin. This can only be done in the same arch as the runner
+            ALUMET_CONFIG="alumet-config.toml" $bin/${{ inputs.arch }}-unknown-linux-musl/release/alumet-agent --plugins csv,perf,procfs,socket-control config regen
+            cp "alumet-config.toml" ../packaging/bin/
+          fi
+
+      - name: Upload bin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.arch }}-alumet-agent
+          path: packaging/bin/${{ inputs.arch }}/alumet-agent
+          compression-level: 0  # the package is already compressed
+
+      - name: Upload config artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ inputs.arch }} == "x86_64"
+        with:
+          name: config-alumet-agent
+          path: packaging/bin/alumet-config.toml
+          compression-level: 0

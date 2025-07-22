@@ -9,7 +9,6 @@ License:   EUPL-1.2
 Url:       https://github.com/alumet-dev/alumet
 BuildArch: %{arch}
 
-BuildRequires:  musl-tools >= 1.2.2
 Requires: libcap
 
 %description
@@ -18,12 +17,6 @@ Customizable and efficient tool for measuring the energy consumption and perform
 %prep
 echo prep
 cp %{_sourcedir}/* %{_builddir}/
-
-%build
-echo build
-cd "%{_builddir}"
-ALUMET_CONFIG=alumet-config.toml ./alumet-agent --plugins csv,perf,procfs,socket-control config regen
-cd -
 
 %install
 ls -al %{_builddir}/
@@ -63,6 +56,6 @@ fi
 
 %changelog
 * Wed Jul 23 2025 Guillermo guillermo.gomezchavez@eviden.com - 0.0.2
-- Musl dependencies for cross-compilation
+- Config file is generated outside of rpm build
 * Wed Sep 18 2024 Cyprien cyprien.pelisse-verdoux@eviden.com - 0.0.1
 - Initial package
