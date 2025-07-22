@@ -33,26 +33,26 @@ jobs:
       release-version: ${{ github.event.inputs.revision }}
       tag: ${{ github.event.inputs.tag }}
 
-  rpm:
-    uses: ./.github/workflows/build_rpm.yaml
-    with:
-      arch: x86_64
-      version: ${{ github.event.inputs.version }}
-      release-version: ${{ github.event.inputs.revision }}
+  # rpm:
+  #   uses: ./.github/workflows/build_rpm.yaml
+  #   with:
+  #     arch: x86_64
+  #     version: ${{ github.event.inputs.version }}
+  #     release-version: ${{ github.event.inputs.revision }}
 
-  deb:
-    uses: ./.github/workflows/build_deb.yaml
-    with:
-      arch: amd64
-      version: ${{ github.event.inputs.version }}
-      revision: ${{ github.event.inputs.revision }}
+  # deb:
+  #   uses: ./.github/workflows/build_deb.yaml
+  #   with:
+  #     arch: amd64
+  #     version: ${{ github.event.inputs.version }}
+  #     revision: ${{ github.event.inputs.revision }}
 
-  docker:
-    uses: ./.github/workflows/build_docker.yaml
-    with:
-      arch: x86_64
-      version: ${{ github.event.inputs.version }}
-      release-version: ${{ github.event.inputs.revision }}
-    needs:
-      - rpm
-      - deb
+  # docker:
+  #   uses: ./.github/workflows/build_docker.yaml
+  #   with:
+  #     arch: x86_64
+  #     version: ${{ github.event.inputs.version }}
+  #     release-version: ${{ github.event.inputs.revision }}
+  #   needs:
+  #     - rpm
+  #     - deb
