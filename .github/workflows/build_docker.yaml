@@ -19,7 +19,7 @@ on:
 jobs:
   packaging:
     name: packaging (${{ matrix.os.name }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     timeout-minutes: 30
     env:
       ARCH: ${{ (inputs.arch == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || inputs.arch }}

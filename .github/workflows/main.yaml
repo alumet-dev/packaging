@@ -22,64 +22,78 @@ on:
         default: 'main'
 
 jobs:
-  bin:
-    strategy:
-      fail-fast: false
-      matrix: 
-        arch: [x86_64, aarch64]
-    uses: ./.github/workflows/build_musl_bin.yaml
-    with:
-      arch: ${{ matrix.arch }}
-      version: ${{ github.event.inputs.version }}
-      tag: ${{ github.event.inputs.tag }}
-      revision: ${{ github.event.inputs.revision }}
-  deb:
-    strategy:
-      fail-fast: false
-      matrix: 
-        arch: [x86_64, aarch64]
-    uses: ./.github/workflows/build_musl_deb.yaml
-    needs: 
-      - bin
-    with:
-      arch: ${{ matrix.arch }}
-      version: ${{ github.event.inputs.version }}
-      tag: ${{ github.event.inputs.tag }}
-      revision: ${{ github.event.inputs.revision }}
-  rpm:
-    strategy:
-      fail-fast: false
-      matrix: 
-        arch: [x86_64, aarch64]
-    uses: ./.github/workflows/build_musl_rpm.yaml
-    needs: 
-      - bin
-    with:
-      arch: ${{ matrix.arch }}
-      version: ${{ github.event.inputs.version }}
-      tag: ${{ github.event.inputs.tag }}
-      revision: ${{ github.event.inputs.revision }}
-
-  # rpm:
-  #   uses: ./.github/workflows/build_rpm.yaml
+  # bin:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix: 
+  #       arch: [x86_64, aarch64]
+  #   uses: ./.github/workflows/build_musl_bin.yaml
   #   with:
-  #     arch: x86_64
+  #     arch: ${{ matrix.arch }}
   #     version: ${{ github.event.inputs.version }}
-  #     release-version: ${{ github.event.inputs.revision }}
-
+  #     tag: ${{ github.event.inputs.tag }}
+  #     revision: ${{ github.event.inputs.revision }}
   # deb:
-  #   uses: ./.github/workflows/build_deb.yaml
+  #   strategy:
+  #     fail-fast: false
+  #     matrix: 
+  #       arch: [x86_64, aarch64]
+  #   uses: ./.github/workflows/build_musl_deb.yaml
+  #   needs: 
+  #     - bin
   #   with:
-  #     arch: amd64
+  #     arch: ${{ matrix.arch }}
   #     version: ${{ github.event.inputs.version }}
+  #     tag: ${{ github.event.inputs.tag }}
+  #     revision: ${{ github.event.inputs.revision }}
+  # rpm:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix: 
+  #       arch: [x86_64, aarch64]
+  #   uses: ./.github/workflows/build_musl_rpm.yaml
+  #   needs: 
+  #     - bin
+  #   with:
+  #     arch: ${{ matrix.arch }}
+  #     version: ${{ github.event.inputs.version }}
+  #     tag: ${{ github.event.inputs.tag }}
   #     revision: ${{ github.event.inputs.revision }}
 
-  # docker:
-  #   uses: ./.github/workflows/build_docker.yaml
-  #   with:
-  #     arch: x86_64
-  #     version: ${{ github.event.inputs.version }}
-  #     release-version: ${{ github.event.inputs.revision }}
-  #   needs:
-  #     - rpm
-  #     - deb
+  rpm:
+    uses: ./.github/workflows/build_rpm.yaml
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ github.event.inputs.version }}
+      release-version: ${{ github.event.inputs.revision }}
+      tag: ${{ github.event.inputs.tag }}
+
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ github.event.inputs.version }}
+      revision: ${{ github.event.inputs.revision }}
+      tag: ${{ github.event.inputs.tag }}
+
+  docker:
+    uses: ./.github/workflows/build_docker.yaml
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ github.event.inputs.version }}
+      release-version: ${{ github.event.inputs.revision }}
+    needs:
+      - rpm
+      - deb

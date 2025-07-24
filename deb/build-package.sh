@@ -17,7 +17,8 @@ install -D -m 0755 ./alumet-agent                       "$ROOT/usr/lib/alumet-ag
 install -D -m 0755 ../rpm/SOURCES/alumet-agent-launcher "$ROOT/usr/bin/alumet-agent"
 install -D -m 0644 ../rpm/SOURCES/alumet.service        "$ROOT/usr/lib/systemd/system/alumet.service"
 
-# put the configuration file in the right folder with the right permissions
+# generate the configuration file and put it in the right folder with the right permissions
+ALUMET_CONFIG="alumet-config.toml" ./alumet-agent --plugins csv,perf,procfs,socket-control config regen
 install -D -m 0644 ./alumet-config.toml "$ROOT/etc/alumet/alumet-config.toml"
 
 # generate the changelog

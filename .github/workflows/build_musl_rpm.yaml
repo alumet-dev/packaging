@@ -92,7 +92,7 @@ jobs:
         run: |
           cp ../bin/${{ inputs.arch }}/alumet-agent SOURCES/alumet-agent
           cp ../bin/alumet-config.toml SOURCES/alumet-config.toml
-          rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.revision }}" --define "osr ${{ matrix.os.name }}" --define "arch ${{ inputs.arch }}" SPECS/alumet.spec
+          rpmbuild -bb -vv --define "_topdir $build_dir" --define "_sourcedir $source_dir" --define "_libdir /usr/lib" --define "version 0.1.0" --define "release 1" --define "osr ubi9.5" --define "arch aarch64" SPECS/alumet.spec
           export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.revision }}.${{ matrix.os.name }}.${{ inputs.arch }}.rpm"
           echo "PACKAGE_FILENAME=$FILENAME" >> $GITHUB_OUTPUT
           echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> $GITHUB_OUTPUT

@@ -32,7 +32,7 @@ on:
 
 jobs:
   deb-packaging:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
@@ -46,10 +46,11 @@ jobs:
           ]
     env:
       pkg_name: alumet-agent
-
+      ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || inputs.arch }}
     container:
       image: ${{ matrix.os }}
-
+    outputs:
+      artifact_name: ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
     defaults:
       run:
         shell: bash
@@ -116,10 +117,10 @@ jobs:
       - name: Define final package file name
         id: define_package_filename
         run: |
-          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
+          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
 
       - name: Rename package file
-        run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ inputs.arch }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+        run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
         working-directory: packaging
 
       # Run lintian with --fail-on error, but that option don't exist on old distribs.
@@ -137,8 +138,9 @@ jobs:
           compression-level: 0  # the package is already compressed
 
   deb-testing:
-    needs: deb-packaging
-    runs-on: ubuntu-latest
+    needs: 
+      - deb-packaging
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
@@ -152,7 +154,9 @@ jobs:
     container:
       image: ${{ matrix.os.base-image }}
       options: --cap-add=SYS_NICE --cap-add=PERFMON
-
+    env:
+      pkg_name: alumet-agent
+      ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || inputs.arch }}
     steps:
       - name: Install Act dependencies
         if: ${{ env.ACT }}
@@ -166,11 +170,15 @@ jobs:
           fetch-depth: 1
           path: "packaging"
 
+      - name: Setup GITHUB_ENV
+        run: |
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          
       - name: Download DEB artifact
         id: download_deb
         uses: actions/download-artifact@v4
         with:
-          pattern: "**/*${{ matrix.os.name }}*.deb"
+          pattern: "**/${{ needs.deb-packaging.outputs.artifact_name }}"
           path: ./deb
           merge-multiple: true
 

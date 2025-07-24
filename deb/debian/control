@@ -9,7 +9,7 @@ Vcs-Browser: https://github.com/alumet-dev/alumet
 Vcs-Git: https://github.com/alumet-dev/alumet.git
 
 Package: alumet-agent
-Architecture: amd64
+Architecture: amd64 aarch64
 # shlibs:Depends finds the packages that provide the dependencies of the agent binary
 # libcap2-bin provides the setcap command that we need in postinst
 Depends: ${shlibs:Depends}, libcap2-bin
