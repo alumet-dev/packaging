@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       arch:
-        description: 'What is the architecture we want to build for'
+        description: "Architecture we want to build for"
         required: true
         type: string
       version:
@@ -21,10 +21,13 @@ jobs:
     name: packaging (${{ matrix.os.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:  
+      artifact_name: ${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
     env:
       ARCH: ${{ (inputs.arch == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || inputs.arch }}
-      OUTPUT_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar
+      DOCKER_BUILD_PLATFORM: ${{ (inputs.arch == 'x86_64') && 'linux/amd64' || 'linux/arm64' }}
     strategy:
+      fail-fast: false
       matrix:
         os:
           - { name: ubi9.5,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.5,  builder-image: registry.access.redhat.com/ubi9:9.5,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
@@ -32,6 +35,11 @@ jobs:
           - { name: fc42,         type: rpm, path: "docker/fedora",  base-image: fedora:42 }
           - { name: debian_12,    type: deb, path: "docker/debian" , base-image: debian:12-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
+        arch: 
+          - ${{ inputs.arch }}
+        exclude: 
+          - os: {type: deb}
+            arch: aarch64
     steps:
       # See deb and rpm steps.
       - name: Normalize version number
@@ -46,12 +54,17 @@ jobs:
           repository: alumet-dev/packaging
 
       - name: Define the dependency artifact name (RPM)
-        if: matrix.os.type == 'rpm'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
+        run: |
+          if [[ ${{ matrix.os.type }} == 'rpm' ]]; then
+            echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
+          else
+            echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ env.PKG_VERSION }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
+          fi
 
-      - name: Define the dependency artifact name (DEB)
-        if: matrix.os.type == 'deb'
-        run: echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ env.PKG_VERSION }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
+      - name: Define the output artifact name
+        id: artifact_name
+        run: |
+          echo "OUTPUT_ARTIFACT_NAME=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar" >> $GITHUB_OUTPUT
 
       - name: Create the dependency artifacts directory
         run: mkdir -p build/deps-artifacts
@@ -64,15 +77,18 @@ jobs:
 
       - name: Create docker image output dir
         run: mkdir -p build/docker
-
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Set up image tags
         run: |
-          TAGS="ghcr.io/${{ github.repository_owner }}/alumet-agent:${{ inputs.version }}-${{ inputs.release-version }}_${{ matrix.os.name }}"
+          TAGS="ghcr.io/${{ github.repository_owner }}/alumet-agent:${{ inputs.version }}-${{ inputs.release-version }}_${{ matrix.os.name }}_${{ inputs.arch }}"
           if [ "${{ matrix.os.latest_tag }}" == "true" ]; then
-            TAGS="$TAGS,ghcr.io/${{ github.repository_owner }}/alumet-agent:latest"
+            TAGS="$TAGS,ghcr.io/${{ github.repository_owner }}/alumet-agent:latest_${{ inputs.arch }}"
           fi
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "Images tags: $TAGS" >> $GITHUB_STEP_SUMMARY
@@ -82,6 +98,7 @@ jobs:
         with:
           context: ${{ matrix.os.path }}
           push: false
+          platforms: ${{ env.DOCKER_BUILD_PLATFORM }}
           file: ${{ matrix.os.path }}/Dockerfile
           build-args: |
             ALUMET_VERSION=${{ inputs.version }}
@@ -90,7 +107,7 @@ jobs:
             ARTIFACT_FILE=${{ env.DEPS_ARTIFACT_FILE }}
             LIBSSL_VERSION=${{ matrix.os.libssl-version }}
             LIBCRYPTO_VERSION=${{ matrix.os.libcrypto-version }}
-          outputs: type=docker,dest=build/docker/${{ env.OUTPUT_ARTIFACT_NAME }}
+          outputs: type=docker,dest=build/docker/${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
           tags: ${{ env.TAGS }}
         env:
           DOCKER_BUILD_SUMMARY: false
@@ -98,8 +115,8 @@ jobs:
       - name: Upload docker image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.OUTPUT_ARTIFACT_NAME }}
-          path: ./build/docker/${{ env.OUTPUT_ARTIFACT_NAME }}
+          name: ${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
+          path: ./build/docker/${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
 
   testing:
     runs-on: ubuntu-latest
@@ -107,6 +124,7 @@ jobs:
     env:
       DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.arch }}.docker.tar
     strategy:
+      fail-fast: false
       matrix:
         os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_24.04"]
     needs:
@@ -124,7 +142,7 @@ jobs:
       - name: Download docker images artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.DOCKER_ARTIFACT_NAME }}
+          name: ${{ needs.packaging.outputs.artifact_name }}
           path: ./docker-artifacts
       
       - name: Install Goss / Dgoss
@@ -133,14 +151,15 @@ jobs:
 
       - name: Run Dgoss tests
         run: |
-          image_sha=$(docker load -q -i ./docker-artifacts/${{ env.DOCKER_ARTIFACT_NAME }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
+          image_sha=$(docker load -q -i ./docker-artifacts/${{ needs.packaging.outputs.artifact_name }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
           export GOSS_FILE=.github/dgoss_validate.yaml
           set -o pipefail
-          dgoss run --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
+          dgoss run --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload tests reports
         if: always() # never skip to have file even in case of test failure
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-dgoss_tests_report.txt
-          path: ${{ matrix.os }}-dgoss_tests_report.txt
+          name: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt
+          path: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt

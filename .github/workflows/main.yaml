@@ -30,9 +30,9 @@ jobs:
         arch: [x86_64, aarch64]
     with:
       arch: ${{ matrix.arch }}
-      version: ${{ github.event.inputs.version }}
-      release-version: ${{ github.event.inputs.revision }}
-      tag: ${{ github.event.inputs.tag }}
+      version: ${{ inputs.version }}
+      release-version: ${{ inputs.revision }}
+      tag: ${{ inputs.tag }}
 
   deb:
     uses: ./.github/workflows/build_deb.yaml
@@ -43,10 +43,14 @@ jobs:
 
   docker:
     uses: ./.github/workflows/build_docker.yaml
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
     with:
-      arch: x86_64
-      version: ${{ github.event.inputs.version }}
-      release-version: ${{ github.event.inputs.revision }}
+      arch: ${{ matrix.arch }}
+      version: ${{ inputs.version }}
+      release-version: ${{ inputs.revision }}
     needs:
       - rpm
       - deb
