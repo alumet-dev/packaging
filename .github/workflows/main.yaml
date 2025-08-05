@@ -36,8 +36,12 @@ jobs:
 
   deb:
     uses: ./.github/workflows/build_deb.yaml
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
     with:
-      arch: amd64
+      arch: ${{ matrix.arch }}
       version: ${{ github.event.inputs.version }}
       revision: ${{ github.event.inputs.revision }}
 

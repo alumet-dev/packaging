@@ -32,7 +32,7 @@ on:
 
 jobs:
   deb-packaging:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
@@ -46,6 +46,7 @@ jobs:
           ]
     env:
       pkg_name: alumet-agent
+      ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || 'arm64' }}
 
     container:
       image: ${{ matrix.os }}
@@ -116,10 +117,10 @@ jobs:
       - name: Define final package file name
         id: define_package_filename
         run: |
-          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ inputs.arch }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
+          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
 
       - name: Rename package file
-        run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ inputs.arch }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
+        run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
         working-directory: packaging
 
       # Run lintian with --fail-on error, but that option don't exist on old distribs.
@@ -138,7 +139,7 @@ jobs:
 
   deb-testing:
     needs: deb-packaging
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
@@ -148,6 +149,8 @@ jobs:
           - { name: "20.04", base-image: ubuntu:20.04 }
           - { name: "22.04", base-image: ubuntu:22.04 }
           - { name: "24.04", base-image: ubuntu:24.04 }
+    env:
+      ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || 'arm64' }}
 
     container:
       image: ${{ matrix.os.base-image }}
@@ -170,7 +173,7 @@ jobs:
         id: download_deb
         uses: actions/download-artifact@v4
         with:
-          pattern: "**/*${{ matrix.os.name }}*.deb"
+          pattern: "**/*${{ env.ARCH }}*${{ matrix.os.name }}.deb"
           path: ./deb
           merge-multiple: true
 
