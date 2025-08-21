@@ -31,7 +31,7 @@ on:
 
 jobs:
   rpm-packaging:
-    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -121,7 +121,7 @@ jobs:
           compression-level: 0  # the package is already compressed
 
   rpm-testing:
-    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     needs:
       - rpm-packaging
     strategy:
