@@ -19,7 +19,7 @@ on:
 jobs:
   packaging:
     name: packaging (${{ matrix.os.name }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     timeout-minutes: 30
     outputs:  
       artifact_name: ${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
@@ -119,7 +119,7 @@ jobs:
           path: ./build/docker/${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
 
   testing:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     timeout-minutes: 10
     env:
       DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.arch }}.docker.tar
@@ -127,6 +127,13 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_24.04"]
+        arch:
+          - ${{ inputs.arch }}
+        exclude:
+          - os: debian_12
+            arch: aarch64
+          - os: ubuntu_24.04
+            arch: aarch64
     needs:
       - packaging
 
