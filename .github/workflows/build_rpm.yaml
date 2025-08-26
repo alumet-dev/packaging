@@ -27,7 +27,7 @@ on:
       rust-version:
         description: "Version of Rust to compile Alumet with"
         type: string
-        default: '1.85.1'
+        default: '1.89'
 
 jobs:
   rpm-packaging:
