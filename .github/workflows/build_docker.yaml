@@ -24,7 +24,7 @@ jobs:
     outputs:  
       artifact_name: ${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
     env:
-      ARCH: ${{ (inputs.arch == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || inputs.arch }}
+      ARCH: ${{ (inputs.arch == 'x86_64' && matrix.os.type == 'deb') && 'amd64' || (inputs.arch == 'aarch64' && matrix.os.type == 'deb') && 'arm64' || inputs.arch }}
       DOCKER_BUILD_PLATFORM: ${{ (inputs.arch == 'x86_64') && 'linux/amd64' || 'linux/arm64' }}
     strategy:
       fail-fast: false
@@ -35,11 +35,7 @@ jobs:
           - { name: fc42,         type: rpm, path: "docker/fedora",  base-image: fedora:42 }
           - { name: debian_12,    type: deb, path: "docker/debian" , base-image: debian:12-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
-        arch: 
-          - ${{ inputs.arch }}
-        exclude: 
-          - os: {type: deb}
-            arch: aarch64
+
     steps:
       # See deb and rpm steps.
       - name: Normalize version number
