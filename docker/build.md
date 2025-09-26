@@ -5,7 +5,7 @@
 Do this first:
 
 1. Clone the `alumet` repository and build an `alumet-agent` binary.
-2. Build a [DEB](../deb/README.md) or [RPM](../rpm/README.md) package with the provided scripts.
+2. Build a [DEB](../deb/README.md) or [RPM](../rpm/README.md) package with the provided scripts. You can also download a pre-built package from [Alumet releases](https://github.com/alumet-dev/alumet/releases).
 3. Install [podman](https://podman.io/) (or docker).
 
 ## Image Building
@@ -41,7 +41,7 @@ podman build -t $TAG -t $TAG_LATEST \
 Check that the image is available locally:
 
 ```sh
-~/D/T/A/a/packaging ❯❯❯ podman image ls
+❯❯❯ podman image ls
 REPOSITORY                          TAG                             IMAGE ID      CREATED         SIZE
 ghcr.io/alumet-dev/alumet-agent     0.9.1-snapshot-1_ubuntu_24.04   be78752b44cf  2 minutes ago   157 MB
 ghcr.io/alumet-dev/alumet-agent     latest                          be78752b44cf  2 minutes ago   157 MB
