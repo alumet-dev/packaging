@@ -12,16 +12,20 @@
 
 ## Manually building the package
 
+<!-- markdownlint-disable MD029 -->
+
 Before starting, make sure that you have installed the `devscripts` package.
 
 1. Build alumet-agent and copy the binary to the `deb` folder (next to `debian`).
 2. Set the version of the package.
+
 ```sh
 export PKG_VERSION=0.1.2
 export PKG_REVISION=1
 ```
-1. In the `deb` folder, run `build-package.sh`.
-2. That's it! The package is produced in the _parent_ directory.
+
+3. In the `deb` folder, run `build-package.sh`.
+4. That's it! The package is produced in the _parent_ directory.
 
 ## Testing the workflow locally
 
