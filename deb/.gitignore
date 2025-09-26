@@ -4,3 +4,8 @@ alumet-config.toml
 etc/
 lib/
 usr/
+debian/*.postrm.debhelper
+debian/*.substvars
+debian/debhelper-build-stamp
+debian/files
+debian/changelog
