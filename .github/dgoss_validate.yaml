@@ -5,17 +5,21 @@ group:
 user:
   alumet:
     exists: true
+    uid: 1000
+    gid: 1000
+    groups:
+      - alumet
 file:
   /etc/alumet/alumet-config.toml:
     exists: true
     owner: alumet
     group: alumet
-    mode: "0644"
+    mode: '0644'
   /usr/bin/alumet-agent:
     exists: true
     owner: alumet
     group: alumet
-    mode: "0755"
+    mode: '0755'
 
 command:
   'check alumet-agent capabilities':
@@ -25,5 +29,5 @@ command:
       /usr/bin/alumet-agent cap_sys_nice,cap_perfmon=ep
 
   'run alumet-agent':
-    exec: "/usr/bin/alumet-agent --config /etc/alumet/alumet-config.toml --plugins csv,perf,procfs,socket-control exec -- sleep 1 && [ -s alumet-output.csv ]"
+    exec: '/usr/bin/alumet-agent --config /etc/alumet/alumet-config.toml --plugins csv,perf,procfs,socket-control exec -- sleep 1 && [ -s alumet-output.csv ]'
     exit-status: 0

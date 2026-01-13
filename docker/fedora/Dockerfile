@@ -20,8 +20,8 @@ RUN dnf install -y /tmp/$ARTIFACT_FILE && \
     mv /usr/lib/alumet-agent /usr/bin/alumet-agent && \
     dnf install -y util-linux && \
     dnf clean all && \
-    groupadd -r alumet && \
-    useradd -r -g alumet alumet && \
+    groupadd -r alumet -g 1000 && \
+    useradd -r -g alumet -u 1000 alumet && \
     mkdir /app && \
     chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app; \
     setcap "cap_sys_nice+ep cap_perfmon=ep" "/usr/bin/alumet-agent"

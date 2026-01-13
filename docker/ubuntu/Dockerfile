@@ -18,8 +18,10 @@ RUN apt update -y && \
     apt install -y /tmp/$ARTIFACT_FILE && \
     rm -f /tmp/$ARTIFACT_FILE && \
     rm /usr/bin/alumet-agent && mv /usr/lib/alumet-agent /usr/bin/alumet-agent && \
-    groupadd -r alumet && \
-    useradd -r -g alumet alumet && \
+    usermod --uid 1001 ubuntu && \
+    groupmod --gid 1001 ubuntu && \
+    groupadd -r alumet -g 1000 && \
+    useradd -r -g alumet -u 1000 alumet && \
     mkdir /app && \
     chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app; \
     setcap "cap_sys_nice+ep cap_perfmon=ep" "/usr/bin/alumet-agent"
