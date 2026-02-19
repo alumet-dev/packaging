@@ -14,14 +14,14 @@ if ! [[ "$KERNEL_MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$KERNEL_MINOR" =~ ^[0-9]+$ ]]; t
 fi
 
 # Add capabilities to alumet binary:
-# - if Linux >= 5.8, CAP_SYS_NICE and CAP_PERMON
-# - else, CAP_SYS_NICE and CAP_SYS_ADMIN
+# - if Linux >= 5.8, CAP_SYS_NICE, CAP_SYS_PTRACE and CAP_PERMON
+# - else, CAP_SYS_NICE, CAP_SYS_PTRACE and CAP_SYS_ADMIN
 if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 8 ]; }; then
     # Old versions of setcap don't recognize cap_perfmon even on recent kernels.
     # Use its numeric value instead. See https://bugs.launchpad.net/ubuntu/+source/libcap/+bug/1934608
-    setcap 'cap_perfmon=ep cap_sys_nice=ep' "$BIN" || setcap '38=ep cap_sys_nice=ep' "$BIN"
+    setcap 'cap_perfmon=ep cap_sys_nice=ep cap_sys_ptrace=ep' "$BIN" || setcap '38=ep cap_sys_nice=ep cap_sys_ptrace=ep' "$BIN"
 else
-    setcap 'cap_sys_admin=ep cap_sys_nice=ep' "$BIN"
+    setcap 'cap_sys_admin=ep cap_sys_nice=ep cap_sys_ptrace=ep' "$BIN"
 fi
 
 echo -e "\e[33mWARNING\e[0m: Some Alumet features require system modifications. If you have any problems, please refer to the documentation."

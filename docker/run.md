@@ -18,7 +18,7 @@ sudo sysctl -w kernel.perf_event_paranoid=0
 Note that this command makes a temporary change: it will be reset after reboot.
 If you want to make it persistent, have a look at [sysctl.conf](https://man.archlinux.org/man/sysctl.conf.5.en).
 
-While running the container, you also need to add some capabilities, you can do it through `--cap-add=perfmon --cap-add=sys_nice` flags.
+While running the container, you also need to add some capabilities, you can do it through `--cap-add=perfmon --cap-add=sys_nice --cap-add=sys_ptrace` flags.
 
 ### Powercap virtual filesystem
 

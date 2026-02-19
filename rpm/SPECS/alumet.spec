@@ -56,12 +56,12 @@ if ! [[ "$KERNEL_MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$KERNEL_MINOR" =~ ^[0-9]+$ ]]; t
 fi
 
 # Add capabilities to alumet binary:
-# - if Linux >= 5.8, CAP_SYS_NICE and CAP_PERMON
-# - else, CAP_SYS_NICE and CAP_SYS_ADMIN
+# - if Linux >= 5.8, CAP_SYS_NICE, CAP_SYS_PTRACE and CAP_PERMON
+# - else, CAP_SYS_NICE, CAP_SYS_PTRACE and CAP_SYS_ADMIN
 if [ "$KERNEL_MAJOR" -gt 5 ] || { [ "$KERNEL_MAJOR" -eq 5 ] && [ "$KERNEL_MINOR" -ge 8 ]; }; then
-    setcap 'cap_perfmon=ep cap_sys_nice=ep' %{_exec_prefix}/lib/alumet-agent
+    setcap 'cap_perfmon=ep cap_sys_nice=ep cap_sys_ptrace=ep' %{_exec_prefix}/lib/alumet-agent
 else
-    setcap 'cap_sys_admin=ep cap_sys_nice=ep' %{_exec_prefix}/lib/alumet-agent
+    setcap 'cap_sys_admin=ep cap_sys_nice=ep cap_sys_ptrace=ep' %{_exec_prefix}/lib/alumet-agent
 fi
 
 %changelog
