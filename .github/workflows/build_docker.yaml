@@ -157,7 +157,7 @@ jobs:
           image_sha=$(docker load -q -i ./docker-artifacts/${{ needs.packaging.outputs.artifact_name }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
           export GOSS_FILE=.github/dgoss_validate.yaml
           set -o pipefail
-          dgoss run --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
+          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload tests reports
         if: always() # never skip to have file even in case of test failure

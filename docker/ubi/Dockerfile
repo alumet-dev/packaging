@@ -33,7 +33,7 @@ RUN echo "alumet:x:1000:" >> /etc/group && \
 	mkdir -p /app /home/alumet && \
 	# chown makes alumet-agent bin to be duplicated by docker which increase image size 
 	chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app ; \
-    setcap "cap_sys_nice+ep cap_perfmon=ep" "/usr/bin/alumet-agent"
+    setcap "cap_sys_nice+ep cap_perfmon=ep cap_sys_ptrace=ep" "/usr/bin/alumet-agent"
 
 USER alumet
 WORKDIR /app

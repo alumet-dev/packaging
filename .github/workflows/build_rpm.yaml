@@ -135,7 +135,7 @@ jobs:
           - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
     container:
       image: ${{ matrix.os.base-image }}
-      options: --cap-add=SYS_NICE --cap-add=PERFMON
+      options: --cap-add=SYS_NICE --cap-add=PERFMON --cap-add=SYS_PTRACE
 
     steps:
       - name: Install Act dependencies

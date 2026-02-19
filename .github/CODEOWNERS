@@ -1,0 +1,14 @@
+# Global code owners
+* @alumet-dev/seed-contributors
+
+# Ci maintainers
+.github/ TheElectronWill titouanj AngeCyp
+
+# Deb maintainers
+deb/ TheElectronWill AngeCyp titouanj victoryeagle77
+
+# Docker maintainers
+docker/ TheElectronWill titouanj ahuret
+
+# Rpm maintainers
+rpm/ TheElectronWill AngeCyp titouanj

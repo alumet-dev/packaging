@@ -24,7 +24,7 @@ RUN dnf install -y /tmp/$ARTIFACT_FILE && \
     useradd -r -g alumet -u 1000 alumet && \
     mkdir /app && \
     chown alumet:alumet /usr/bin/alumet-agent /etc/alumet/alumet-config.toml /app; \
-    setcap "cap_sys_nice+ep cap_perfmon=ep" "/usr/bin/alumet-agent"
+    setcap "cap_sys_nice+ep cap_perfmon=ep cap_sys_ptrace=ep" "/usr/bin/alumet-agent"
 
 USER alumet
 WORKDIR /app
