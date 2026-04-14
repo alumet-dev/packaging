@@ -30,10 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         os:
+          - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
           - { name: ubi9.5,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.5,  builder-image: registry.access.redhat.com/ubi9:9.5,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: ubi8.3,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi8-micro:8.10, builder-image: registry.access.redhat.com/ubi8:8.10, libssl-version: 1.1, libcrypto-version: 1.1 }
-          - { name: fc42,         type: rpm, path: "docker/fedora",  base-image: fedora:42 }
-          - { name: debian_12,    type: deb, path: "docker/debian" , base-image: debian:12-slim }
+          - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
+          - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
 
     steps:
