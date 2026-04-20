@@ -31,7 +31,7 @@ jobs:
       matrix:
         os:
           - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: ubi9.5,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.5,  builder-image: registry.access.redhat.com/ubi9:9.5,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
+          - { name: ubi9.6,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.6,  builder-image: registry.access.redhat.com/ubi9:9.6,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
           - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
           - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
@@ -122,11 +122,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubi9.5", "ubi8.3", "fc42", "debian_12", "ubuntu_24.04"]
+        os: ["ubi9.6", "ubi10.1", "fc43", "debian_13", "ubuntu_24.04"]
         arch:
           - ${{ inputs.arch }}
         exclude:
-          - os: debian_12
+          - os: debian_13
             arch: aarch64
           - os: ubuntu_24.04
             arch: aarch64

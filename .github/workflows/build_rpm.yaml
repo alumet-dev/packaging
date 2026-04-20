@@ -39,8 +39,8 @@ jobs:
         os:
           - {name: fc42, base-image: fedora:42}
           - {name: fc43, base-image: fedora:43}
-          - {name: ubi8.3, base-image: registry.access.redhat.com/ubi8/ubi:8.3}
-          - {name: ubi9.5, base-image: registry.access.redhat.com/ubi9/ubi:9.5}
+          - {name: ubi8.10, base-image: registry.access.redhat.com/ubi8/ubi:8.10}
+          - {name: ubi9.6, base-image: registry.access.redhat.com/ubi9/ubi:9.6}
           - {name: ubi10.1, base-image: registry.access.redhat.com/ubi10/ubi:10.1}
     env:
       pkg_name: alumet-agent
