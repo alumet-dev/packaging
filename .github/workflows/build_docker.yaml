@@ -123,13 +123,6 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubi9.6", "ubi10.1", "fc43", "debian_13", "ubuntu_24.04"]
-        arch:
-          - ${{ inputs.arch }}
-        exclude:
-          - os: debian_13
-            arch: aarch64
-          - os: ubuntu_24.04
-            arch: aarch64
     needs:
       - packaging
 
