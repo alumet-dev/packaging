@@ -44,6 +44,7 @@ jobs:
       arch: ${{ matrix.arch }}
       version: ${{ github.event.inputs.version }}
       revision: ${{ github.event.inputs.revision }}
+      tag: ${{ inputs.tag }}
 
   docker:
     uses: ./.github/workflows/build_docker.yaml
