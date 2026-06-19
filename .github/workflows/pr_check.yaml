@@ -1,0 +1,207 @@
+name: Build Alumet artefacts
+
+on:
+  pull_request:
+    paths:
+      - ".github/**"
+      - "deb/**"
+      - "docker/**"
+      - "rpm/**"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+
+  find-changements:
+    runs-on: ubuntu-latest
+    outputs:
+      run-rpm: ${{ steps.get-modified-files.outputs.rpm }}
+      run-deb: ${{ steps.get-modified-files.outputs.deb }}
+      run-all: ${{ steps.get-modified-files.outputs.github }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: get-modified-files
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            rpm:
+              - 'rpm/**'
+              - '!rpm/**/*.md'
+              - '!rpm/**/.gitignore'
+
+            deb:
+              - 'deb/**'
+              - '!deb/**/*.md'
+              - '!deb/**/.gitignore'
+
+            github:
+              - '.github/**'
+              - '!.github/**/*.md'
+
+  setup-input:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.vars.outputs.VERSION}}
+      revision: ${{ steps.vars.outputs.REVISION }}
+    steps:
+      - name: Retrieve build arguments
+        id: vars
+        run: |
+          TAG=$(curl -L https://api.github.com/repos/alumet-dev/alumet/releases/latest | jq -r '.tag_name')
+          echo "VERSION=${TAG#v}" >> "$GITHUB_OUTPUT"
+          REF=$(curl -sL "https://api.github.com/repos/alumet-dev/alumet/git/ref/tags/$TAG")
+
+          TYPE=$(echo "$REF" | jq -r '.object.type')
+          SHA=$(echo "$REF" | jq -r '.object.sha')
+
+          if [ "$TYPE" = "tag" ]; then
+            SHA=$(curl -sL \
+              "https://api.github.com/repos/alumet-dev/alumet/git/tags/$SHA" \
+              | jq -r '.object.sha')
+          fi
+          echo "REVISION=pr${{ github.event.pull_request.number }}SHA${SHA}" >> "$GITHUB_OUTPUT"
+
+  rpm:
+    uses: ./.github/workflows/build_rpm.yaml
+    if: ${{ needs.find-changements.outputs.run-rpm == 'true' || needs.find-changements.outputs.run-all == 'true' }} 
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    needs: 
+      - find-changements
+      - setup-input
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ needs.setup-input.outputs.version }}
+      release-version: ${{ needs.setup-input.outputs.revision }}
+
+  deb:
+    uses: ./.github/workflows/build_deb.yaml
+    if: ${{ needs.find-changements.outputs.run-deb == 'true' || needs.find-changements.outputs.run-all == 'true' }} 
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    needs: 
+      - find-changements
+      - setup-input
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ needs.setup-input.outputs.version }}
+      revision: ${{ needs.setup-input.outputs.revision }}
+
+  docker:
+    uses: ./.github/workflows/build_docker.yaml
+    if: always() && (needs.deb.result == 'success' || needs.rpm.result == 'success')
+    strategy:
+      fail-fast: false
+      matrix: 
+        arch: [x86_64, aarch64]
+    with:
+      arch: ${{ matrix.arch }}
+      version: ${{ needs.setup-input.outputs.version }}
+      release-version: ${{ needs.setup-input.outputs.revision }}
+    needs:
+      - find-changements
+      - setup-input
+      - rpm
+      - deb
+
+  comment-output:
+    runs-on: ubuntu-latest
+    env:
+      ORDER: 'first' #could be 'first' or 'last'
+      SEARCH_STRING: "🔥 Generated artifacts 🔥"
+      BODY: "🔥 Generated artifacts 🔥"
+      FORCE_RECREATE: true
+    needs:
+      - setup-input
+      - rpm
+      - deb
+      - docker
+    steps:
+      - name: Search for previous comment
+        id: find-comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const opts = github.rest.issues.listComments.endpoint.merge({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            // Paginate is used to retrieve the comments of every pages.
+            // See https://octokit.github.io/rest.js/v21/#pagination.
+            var comments = await github.paginate(opts)
+
+            // Reverse comments array if wanted
+            // (listComments returns the comments ordered by ascending ID).
+            if (process.env.ORDER === 'last') {
+              comments.reverse()
+            }
+
+            // Iterate over the comments array.
+            for (const comment of comments) {
+              if (comment.user.login !== 'github-actions[bot]') {
+                continue
+              }
+
+              if (comment.body.includes(process.env.SEARCH_STRING)) {
+                core.setOutput('comment-id', comment.id.toString())
+                break
+              }
+            }
+
+      - name: Get body
+        id: get-body
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = process.env.BODY || "";
+
+            const runUrl =
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+
+            const message = `
+            ### ${body}
+
+            ---
+
+            Artefacts can be found there: ${runUrl}`;
+
+            core.exportVariable('COMMENT_BODY', message)
+            
+      - name: Create a new comment
+        if: ${{ env.FORCE_RECREATE == 'true' || steps.find-comment.outputs.comment-id == '' }}
+        uses: actions/github-script@v9
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.COMMENT_BODY
+            })
+
+      - name: Update existing comment
+        if: ${{ env.FORCE_RECREATE != 'true' && steps.find-comment.outputs.comment-id != '' }}
+        uses: actions/github-script@v9
+        with:
+          script: |
+            github.rest.issues.updateComment({
+              comment_id: ${{ steps.find-comment.outputs.comment-id }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.COMMENT_BODY
+            })
