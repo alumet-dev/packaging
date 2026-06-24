@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
 
-  find-changements:
+  find-changes:
     runs-on: ubuntu-latest
     outputs:
       run-rpm: ${{ steps.get-modified-files.outputs.rpm }}
@@ -33,6 +33,8 @@ jobs:
         with:
           filters: |
             rpm:
+              - 'docker/fedora/**'
+              - 'docker/ubi/**'
               - 'rpm/**'
               - '!rpm/**/*.md'
               - '!rpm/**/.gitignore'
@@ -41,6 +43,8 @@ jobs:
               - 'deb/**'
               - '!deb/**/*.md'
               - '!deb/**/.gitignore'
+              - 'docker/debian/**'
+              - 'docker/ubuntu/**'
 
             github:
               - '.github/**'
@@ -71,13 +75,13 @@ jobs:
 
   rpm:
     uses: ./.github/workflows/build_rpm.yaml
-    if: ${{ needs.find-changements.outputs.run-rpm == 'true' || needs.find-changements.outputs.run-all == 'true' }} 
+    if: ${{ needs.find-changes.outputs.run-rpm == 'true' || needs.find-changes.outputs.run-all == 'true' }} 
     strategy:
       fail-fast: false
       matrix: 
         arch: [x86_64, aarch64]
     needs: 
-      - find-changements
+      - find-changes
       - setup-input
     with:
       arch: ${{ matrix.arch }}
@@ -86,13 +90,13 @@ jobs:
 
   deb:
     uses: ./.github/workflows/build_deb.yaml
-    if: ${{ needs.find-changements.outputs.run-deb == 'true' || needs.find-changements.outputs.run-all == 'true' }} 
+    if: ${{ needs.find-changes.outputs.run-deb == 'true' || needs.find-changes.outputs.run-all == 'true' }} 
     strategy:
       fail-fast: false
       matrix: 
         arch: [x86_64, aarch64]
     needs: 
-      - find-changements
+      - find-changes
       - setup-input
     with:
       arch: ${{ matrix.arch }}
@@ -111,7 +115,7 @@ jobs:
       version: ${{ needs.setup-input.outputs.version }}
       release-version: ${{ needs.setup-input.outputs.revision }}
     needs:
-      - find-changements
+      - find-changes
       - setup-input
       - rpm
       - deb
@@ -119,10 +123,9 @@ jobs:
   comment-output:
     runs-on: ubuntu-latest
     env:
-      ORDER: 'first' #could be 'first' or 'last'
+      ORDER: 'last' #could be 'first' or 'last'
       SEARCH_STRING: "🔥 Generated artifacts 🔥"
       BODY: "🔥 Generated artifacts 🔥"
-      FORCE_RECREATE: true
     needs:
       - setup-input
       - rpm
@@ -173,17 +176,18 @@ jobs:
               `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
               `/actions/runs/${context.runId}`;
 
-            const message = `
-            ### ${body}
+            const message = `### ${body}
 
             ---
 
             Artefacts can be found there: ${runUrl}`;
-
-            core.exportVariable('COMMENT_BODY', message)
+            core.info(`Generated comment body:\n${message}`);
+            console.log('Generated comment body:\n', message);
+            core.notice(`Comment body generated. Length: ${message.length}`);
+            core.setOutput('comment-body', message);
             
       - name: Create a new comment
-        if: ${{ env.FORCE_RECREATE == 'true' || steps.find-comment.outputs.comment-id == '' }}
+        if: ${{ steps.find-comment.outputs.comment-id == '' }}
         uses: actions/github-script@v9
         with:
           script: |
@@ -191,17 +195,25 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: process.env.COMMENT_BODY
+              body: `${{ steps.get-body.outputs.comment-body }}`
             })
 
       - name: Update existing comment
-        if: ${{ env.FORCE_RECREATE != 'true' && steps.find-comment.outputs.comment-id != '' }}
+        if: ${{ steps.find-comment.outputs.comment-id != '' }}
         uses: actions/github-script@v9
         with:
           script: |
-            github.rest.issues.updateComment({
-              comment_id: ${{ steps.find-comment.outputs.comment-id }},
+            const commentId = '${{ steps.find-comment.outputs.comment-id }}';
+            const body = `${{ steps.get-body.outputs.comment-body }}`;
+
+            core.info(`Updating comment ${commentId}`);
+            core.info(`Comment body:\n${body}`);
+
+            await github.rest.issues.updateComment({
+              comment_id: Number(commentId),
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: process.env.COMMENT_BODY
-            })
+              body
+            });
+
+            core.info(`Comment ${commentId} updated successfully`);
