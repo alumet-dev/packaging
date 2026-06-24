@@ -45,34 +45,30 @@ jobs:
           - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
           - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
+        build-rpm:
+          - ${{ inputs.build_rpm }}
+        build-deb:
+          - ${{ inputs.build_deb}}
+        exclude:
+          - os: {type: rpm}
+            build-rpm: false
+          - os: {type: deb}
+            build-deb: false
 
     steps:
-      - name: Skip non relevant builds
-        id: gate
-        run: |
-          if [[ "${{ matrix.os.type }}" == "rpm" && "${{ inputs.build_rpm }}" != "true" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ matrix.os.type }}" == "deb" && "${{ inputs.build_deb }}" != "true" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
       # See deb and rpm steps.
       - name: Normalize version number
-        if: steps.gate.outputs.skip != 'true'
         run: |
           export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
           echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
           echo "PKG_VERSION=$PKG_VERSION"
 
       - name: Checkout the repository
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           repository: alumet-dev/packaging
 
       - name: Define the dependency artifact name (RPM)
-        if: steps.gate.outputs.skip != 'true'
         run: |
           if [[ ${{ matrix.os.type }} == 'rpm' ]]; then
             echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
@@ -82,35 +78,28 @@ jobs:
 
       - name: Define the output artifact name
         id: artifact_name
-        if: steps.gate.outputs.skip != 'true'
         run: |
           echo "OUTPUT_ARTIFACT_NAME=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar" >> $GITHUB_OUTPUT
 
       - name: Create the dependency artifacts directory
-        if: steps.gate.outputs.skip != 'true'
         run: mkdir -p build/deps-artifacts
 
       - name: Download artifact
-        if: steps.gate.outputs.skip != 'true'  
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.DEPS_ARTIFACT_FILE }}
           path: ${{ matrix.os.path }}
 
       - name: Create docker image output dir
-        if: steps.gate.outputs.skip != 'true'
         run: mkdir -p build/docker
       
       - name: Set up QEMU
-        if: steps.gate.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
       
       - name: Set up Docker Buildx
-        if: steps.gate.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Set up image tags
-        if: steps.gate.outputs.skip != 'true'
         run: |
           TAGS="ghcr.io/${{ github.repository_owner }}/alumet-agent:${{ inputs.version }}-${{ inputs.release-version }}_${{ matrix.os.name }}_${{ inputs.arch }}"
           if [ "${{ matrix.os.latest_tag }}" == "true" ]; then
@@ -120,7 +109,6 @@ jobs:
           echo "Images tags: $TAGS" >> $GITHUB_STEP_SUMMARY
 
       - name: Build image
-        if: steps.gate.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.os.path }}
@@ -140,7 +128,6 @@ jobs:
           DOCKER_BUILD_SUMMARY: false
 
       - name: Upload docker image artifact
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact_name.outputs.OUTPUT_ARTIFACT_NAME }}
@@ -150,60 +137,58 @@ jobs:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     timeout-minutes: 10
     env:
-      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.arch }}.docker.tar
+      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubi9.6", "ubi10.1", "fc43", "debian_13", "ubuntu_24.04"]
+        os:
+          - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
+          - { name: ubi9.6,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.6,  builder-image: registry.access.redhat.com/ubi9:9.6,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
+          - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
+          - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
+          - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
+        build-rpm:
+          - ${{ inputs.build_rpm }}
+        build-deb:
+          - ${{ inputs.build_deb}}
+        exclude:
+          - os: {type: rpm}
+            build-rpm: false
+          - os: {type: deb}
+            build-deb: false
     needs:
       - packaging
 
     steps:
-      - name: Skip non relevant builds
-        id: gate
-        run: |
-          if [[ "${{ matrix.os.type }}" == "rpm" && "${{ inputs.build_rpm }}" != "true" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ matrix.os.type }}" == "deb" && "${{ inputs.build_deb }}" != "true" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout the repository
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           repository: alumet-dev/packaging
 
       - name: Create docker artifacts directory
-        if: steps.gate.outputs.skip != 'true'
         run: mkdir docker-artifacts
 
       - name: Download docker images artifacts
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.packaging.outputs.artifact_name }}
           path: ./docker-artifacts
       
       - name: Install Goss / Dgoss
-        if: steps.gate.outputs.skip != 'true'
         run: |
           curl -fsSL https://goss.rocks/install | sh
 
       - name: Run Dgoss tests
-        if: steps.gate.outputs.skip != 'true'
         run: |
           image_sha=$(docker load -q -i ./docker-artifacts/${{ needs.packaging.outputs.artifact_name }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
           export GOSS_FILE=.github/dgoss_validate.yaml
           set -o pipefail
-          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
+          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload tests reports
-        if: always() && steps.gate.outputs.run == 'true' # never skip to have file even in case of test failure
+        if: always() # never skip to have file even in case of test failure
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt
-          path: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt
+          name: ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt
+          path: ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt
