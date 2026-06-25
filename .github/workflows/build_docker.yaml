@@ -16,6 +16,16 @@ on:
         required: true
         type: string
 
+      build_rpm:
+        type: boolean
+        required: false
+        default: true
+
+      build_deb:
+        type: boolean
+        required: false
+        default: true
+
 jobs:
   packaging:
     name: packaging (${{ matrix.os.name }})
@@ -35,6 +45,15 @@ jobs:
           - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
           - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
           - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
+        build-rpm:
+          - ${{ inputs.build_rpm }}
+        build-deb:
+          - ${{ inputs.build_deb}}
+        exclude:
+          - os: {type: rpm}
+            build-rpm: false
+          - os: {type: deb}
+            build-deb: false
 
     steps:
       # See deb and rpm steps.
@@ -118,11 +137,25 @@ jobs:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     timeout-minutes: 10
     env:
-      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os }}.${{ inputs.arch }}.docker.tar
+      DOCKER_ARTIFACT_NAME: alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubi9.6", "ubi10.1", "fc43", "debian_13", "ubuntu_24.04"]
+        os:
+          - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
+          - { name: ubi9.6,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.6,  builder-image: registry.access.redhat.com/ubi9:9.6,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
+          - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
+          - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
+          - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
+        build-rpm:
+          - ${{ inputs.build_rpm }}
+        build-deb:
+          - ${{ inputs.build_deb}}
+        exclude:
+          - os: {type: rpm}
+            build-rpm: false
+          - os: {type: deb}
+            build-deb: false
     needs:
       - packaging
 
@@ -150,12 +183,12 @@ jobs:
           image_sha=$(docker load -q -i ./docker-artifacts/${{ needs.packaging.outputs.artifact_name }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
           export GOSS_FILE=.github/dgoss_validate.yaml
           set -o pipefail
-          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
+          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
 
       - name: Upload tests reports
         if: always() # never skip to have file even in case of test failure
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt
-          path: ${{ matrix.os }}-${{ inputs.arch }}-dgoss_tests_report.txt
+          name: ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt
+          path: ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt
