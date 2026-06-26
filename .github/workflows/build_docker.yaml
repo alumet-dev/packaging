@@ -27,6 +27,65 @@ on:
         default: true
 
 jobs:
+
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.prepare-matrix.outputs.matrix }}
+    steps:
+      - id: prepare-matrix
+        run: |
+          MATRIX='[]'
+
+          if [[ "${{ inputs.build_rpm }}" == "true" ]]; then
+            MATRIX=$(jq -c '. += [
+              {
+                "name":"ubi10.1",
+                "type":"rpm",
+                "path":"docker/ubi",
+                "base-image":"registry.access.redhat.com/ubi10-micro:10.1",
+                "builder-image":"registry.access.redhat.com/ubi10:10.1",
+                "libssl-version":3,
+                "libcrypto-version":3,
+                "latest_tag":true
+              },
+              {
+                "name":"ubi9.6",
+                "type":"rpm",
+                "path":"docker/ubi",
+                "base-image":"registry.access.redhat.com/ubi9-micro:9.6",
+                "builder-image":"registry.access.redhat.com/ubi9:9.6",
+                "libssl-version":3,
+                "libcrypto-version":3,
+                "latest_tag":true
+              },
+              {
+                "name":"fc43",
+                "type":"rpm",
+                "path":"docker/fedora",
+                "base-image":"fedora:43"
+              }
+            ]' <<< "$MATRIX")
+          fi
+
+          if [[ "${{ inputs.build_deb }}" == "true" ]]; then
+            MATRIX=$(jq -c '. += [
+              {
+                "name":"debian_13",
+                "type":"deb",
+                "path":"docker/debian",
+                "base-image":"debian:13-slim"
+              },
+              {
+                "name":"ubuntu_24.04",
+                "type":"deb",
+                "path":"docker/ubuntu",
+                "base-image":"ubuntu:24.04"
+              }
+            ]' <<< "$MATRIX")
+          fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
   packaging:
     name: packaging (${{ matrix.os.name }})
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
@@ -39,28 +98,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: ubi9.6,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.6,  builder-image: registry.access.redhat.com/ubi9:9.6,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
-          - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
-          - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
-        build-rpm:
-          - ${{ inputs.build_rpm }}
-        build-deb:
-          - ${{ inputs.build_deb}}
-        exclude:
-          - os: {type: rpm}
-            build-rpm: false
-          - os: {type: deb}
-            build-deb: false
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    needs:
+      - setup
 
     steps:
       # See deb and rpm steps.
       - name: Normalize version number
         run: |
-          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
-          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
           echo "PKG_VERSION=$PKG_VERSION"
 
       - name: Checkout the repository
@@ -71,15 +118,15 @@ jobs:
       - name: Define the dependency artifact name (RPM)
         run: |
           if [[ ${{ matrix.os.type }} == 'rpm' ]]; then
-            echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> $GITHUB_ENV
+            echo "DEPS_ARTIFACT_FILE=alumet-agent-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ env.ARCH }}.rpm" >> "$GITHUB_ENV"
           else
-            echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ env.PKG_VERSION }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> $GITHUB_ENV
+            echo "DEPS_ARTIFACT_FILE=alumet-agent_${{ env.PKG_VERSION }}-${{ inputs.release-version }}_${{ env.ARCH }}_${{ matrix.os.name }}.deb" >> "$GITHUB_ENV"
           fi
 
       - name: Define the output artifact name
         id: artifact_name
         run: |
-          echo "OUTPUT_ARTIFACT_NAME=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar" >> $GITHUB_OUTPUT
+          echo "OUTPUT_ARTIFACT_NAME=alumet-agent-${{ inputs.version }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.docker.tar" >> "$GITHUB_OUTPUT"
 
       - name: Create the dependency artifacts directory
         run: mkdir -p build/deps-artifacts
@@ -105,8 +152,8 @@ jobs:
           if [ "${{ matrix.os.latest_tag }}" == "true" ]; then
             TAGS="$TAGS,ghcr.io/${{ github.repository_owner }}/alumet-agent:latest_${{ inputs.arch }}"
           fi
-          echo "TAGS=$TAGS" >> $GITHUB_ENV
-          echo "Images tags: $TAGS" >> $GITHUB_STEP_SUMMARY
+          echo "TAGS=$TAGS" >> "$GITHUB_ENV"
+          echo "Images tags: $TAGS" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build image
         uses: docker/build-push-action@v6
@@ -141,22 +188,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - { name: ubi10.1,      type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi10-micro:10.1,  builder-image: registry.access.redhat.com/ubi10:10.1,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: ubi9.6,       type: rpm, path: "docker/ubi",     base-image: registry.access.redhat.com/ubi9-micro:9.6,  builder-image: registry.access.redhat.com/ubi9:9.6,  libssl-version: 3,   libcrypto-version: 3, latest_tag: true}
-          - { name: fc43,         type: rpm, path: "docker/fedora",  base-image: fedora:43 }
-          - { name: debian_13,    type: deb, path: "docker/debian" , base-image: debian:13-slim }
-          - { name: ubuntu_24.04, type: deb, path: "docker/ubuntu",  base-image: ubuntu:24.04 }
-        build-rpm:
-          - ${{ inputs.build_rpm }}
-        build-deb:
-          - ${{ inputs.build_deb}}
-        exclude:
-          - os: {type: rpm}
-            build-rpm: false
-          - os: {type: deb}
-            build-deb: false
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
     needs:
+      - setup
       - packaging
 
     steps:
@@ -183,7 +218,7 @@ jobs:
           image_sha=$(docker load -q -i ./docker-artifacts/${{ needs.packaging.outputs.artifact_name }} | grep "Loaded image: "| awk '{ print $3 }' | head -1)
           export GOSS_FILE=.github/dgoss_validate.yaml
           set -o pipefail
-          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice $image_sha 2>&1 | tee ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt >> $GITHUB_STEP_SUMMARY
+          dgoss run  --cap-add=sys_ptrace --cap-add=perfmon --cap-add=sys_nice "$image_sha" 2>&1 | tee ${{ matrix.os.name }}-${{ inputs.arch }}-dgoss_tests_report.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload tests reports
         if: always() # never skip to have file even in case of test failure
