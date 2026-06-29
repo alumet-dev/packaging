@@ -29,6 +29,9 @@ on:
         type: string
         default: '1.89'
 
+env:
+  ACT: false
+
 jobs:
   rpm-packaging:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
@@ -56,8 +59,8 @@ jobs:
       # also replace - by ~ because we want 1.2.3-defbcda to be sorted BEFORE 1.2.3
       - name: Normalize version number
         run: |
-          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
-          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
           echo "PKG_VERSION=$PKG_VERSION"
 
       - uses: actions/checkout@v4
@@ -110,8 +113,8 @@ jobs:
         run: |
           rpmbuild -bb -vv --define "_topdir ${{ env.build_dir }}" --define "_sourcedir ${{ env.source_dir }}" --define "_libdir /usr/lib" --define "version ${{ env.PKG_VERSION }}" --define "release ${{ inputs.release-version }}" --define "osr ${{ matrix.os.name }}" --define "arch ${{ inputs.arch }}" SPECS/alumet.spec
           export FILENAME="${{ env.pkg_name }}-${{ env.PKG_VERSION }}-${{ inputs.release-version }}.${{ matrix.os.name }}.${{ inputs.arch }}.rpm"
-          echo "PACKAGE_FILENAME=$FILENAME" >> $GITHUB_OUTPUT
-          echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> $GITHUB_OUTPUT
+          echo "PACKAGE_FILENAME=$FILENAME" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_PATH=$(pwd)/build/RPMS/${{ inputs.arch }}/$FILENAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact alumet-agent
         uses: actions/upload-artifact@v4
@@ -175,7 +178,7 @@ jobs:
         id: goss-tests
         run: |
           set -o pipefail
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-rpm-${{ matrix.os.name }}.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload goss report
         if: >-
