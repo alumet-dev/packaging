@@ -28,7 +28,10 @@ on:
       rust-version:
         description: "Version of Rust to compile Alumet with"
         type: string
-        default: '1.89'
+        default: "1.89"
+
+env:
+  ACT: false
 
 jobs:
   deb-packaging:
@@ -66,8 +69,8 @@ jobs:
       # also replace - by ~ because we want 1.2.3-defbcda to be sorted BEFORE 1.2.3
       - name: Normalize version number
         run: |
-          export PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
-          echo "PKG_VERSION=$PKG_VERSION" >> $GITHUB_ENV
+          PKG_VERSION=$(echo ${{ inputs.version }} | sed 's/[_-]/~/g')
+          echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
           echo "PKG_VERSION=$PKG_VERSION"
 
       - uses: actions/checkout@v4
@@ -78,8 +81,8 @@ jobs:
 
       - name: Setup GITHUB_ENV
         run: |
-          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
-          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> $GITHUB_ENV
+          echo "OS_NAME=$(grep '^ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> "$GITHUB_ENV"
+          echo "OS_VERSION=$(grep '^VERSION_ID=' "/etc/os-release" | cut -d'=' -f2 | tr -d '"')" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         shell: bash
@@ -118,7 +121,7 @@ jobs:
       - name: Define final package file name
         id: define_package_filename
         run: |
-          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> $GITHUB_OUTPUT
+          echo "PACKAGE_FILENAME=${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}_${{ env.OS_NAME }}_${{ env.OS_VERSION }}.deb" >> "$GITHUB_OUTPUT"
 
       - name: Rename package file
         run: mv ${{ env.pkg_name }}_${{ env.PKG_VERSION }}-${{ inputs.revision }}_${{ env.ARCH }}.deb ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
@@ -136,7 +139,7 @@ jobs:
         with:
           name: ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
           path: packaging/${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
-          compression-level: 0  # the package is already compressed
+          compression-level: 0 # the package is already compressed
 
   deb-testing:
     needs: deb-packaging
@@ -193,7 +196,7 @@ jobs:
         id: goss-tests
         run: |
           set -e pipefail
-          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb-${{ matrix.os.name }}.txt >> $GITHUB_STEP_SUMMARY
+          goss -g packaging/.github/goss_validate.yaml validate --format documentation | tee goss-results-deb-${{ matrix.os.name }}.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload goss report
         if: >-
