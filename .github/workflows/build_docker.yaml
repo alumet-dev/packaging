@@ -111,7 +111,7 @@ jobs:
           echo "PKG_VERSION=$PKG_VERSION"
 
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: alumet-dev/packaging
 
@@ -196,7 +196,7 @@ jobs:
 
     steps:
       - name: Checkout the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: alumet-dev/packaging
 

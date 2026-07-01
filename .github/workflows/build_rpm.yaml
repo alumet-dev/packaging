@@ -33,18 +33,46 @@ env:
   ACT: false
 
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.prepare-matrix.outputs.matrix }}
+    steps:
+      - id: prepare-matrix
+        run: |
+          MATRIX='[]'
+          MATRIX=$(jq -c '. += [
+            {
+              "name":"fc42",
+              "base-image":"fedora:42"
+            },
+            {
+              "name":"fc43",
+              "base-image":"fedora:43"
+            },
+            {
+              "name":"ubi8.10", 
+              "base-image":"registry.access.redhat.com/ubi8/ubi:8.10"
+            },
+            {
+              "name":"ubi9.6", 
+              "base-image":"registry.access.redhat.com/ubi9/ubi:9.6"
+            },
+            {
+              "name":"ubi10.1", 
+              "base-image":"registry.access.redhat.com/ubi10/ubi:10.1"
+            }
+          ]' <<< "$MATRIX")
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
   rpm-packaging:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     continue-on-error: true
+    needs: 
+      - setup
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - {name: fc42, base-image: fedora:42}
-          - {name: fc43, base-image: fedora:43}
-          - {name: ubi8.10, base-image: registry.access.redhat.com/ubi8/ubi:8.10}
-          - {name: ubi9.6, base-image: registry.access.redhat.com/ubi9/ubi:9.6}
-          - {name: ubi10.1, base-image: registry.access.redhat.com/ubi10/ubi:10.1}
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       pkg_name: alumet-agent
     container:
@@ -63,7 +91,7 @@ jobs:
           echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
           echo "PKG_VERSION=$PKG_VERSION"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: alumet-dev/packaging
           fetch-tags: true
@@ -87,7 +115,7 @@ jobs:
         run: mkdir -p alumet
 
       - name: Checkout alumet repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: alumet-dev/alumet
           path: "alumet"
@@ -126,16 +154,12 @@ jobs:
   rpm-testing:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-24.04' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     needs:
+      - setup
       - rpm-packaging
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - {name: fc42, base-image: fedora:42}
-          - {name: fc43, base-image: fedora:43}
-          - {name: ubi8.10, base-image: registry.access.redhat.com/ubi8/ubi:8.10}
-          - {name: ubi9.6, base-image: registry.access.redhat.com/ubi9/ubi:9.6}
-          - {name: ubi10.1, base-image: registry.access.redhat.com/ubi10/ubi:10.1}
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
     container:
       image: ${{ matrix.os.base-image }}
       options: --cap-add=SYS_NICE --cap-add=PERFMON --cap-add=SYS_PTRACE
@@ -147,7 +171,7 @@ jobs:
           dnf install --setopt=install_weak_deps=False -y nodejs sudo
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: 'alumet-dev/packaging'
           fetch-depth: 1
