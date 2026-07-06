@@ -34,26 +34,56 @@ env:
   ACT: false
 
 jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.prepare-matrix.outputs.matrix }}
+    steps:
+      - id: prepare-matrix
+        run: |
+          MATRIX='[]'
+          MATRIX=$(jq -c '. += [
+            {
+              "name":"11",
+              "base-image":"debian:11"
+            },
+            {
+              "name":"12",
+              "base-image":"debian:12"
+            },
+                        {
+              "name":"13",
+              "base-image":"debian:13"
+            },
+            {
+              "name":"20.04", 
+              "base-image":"ubuntu:20.04"
+            },
+            {
+              "name":"22.04", 
+              "base-image":"ubuntu:22.04"
+            },
+            {
+              "name":"24.04", 
+              "base-image":"ubuntu:24.04"
+            }
+          ]' <<< "$MATRIX")
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   deb-packaging:
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          [
-            "debian:11",
-            "debian:12",
-            "debian:13",
-            "ubuntu:20.04",
-            "ubuntu:22.04",
-            "ubuntu:24.04",
-          ]
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    needs:
+      - setup
     env:
       pkg_name: alumet-agent
       ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || 'arm64' }}
 
     container:
-      image: ${{ matrix.os }}
+      image: ${{ matrix.os.base-image }}
 
     defaults:
       run:
@@ -73,7 +103,7 @@ jobs:
           echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
           echo "PKG_VERSION=$PKG_VERSION"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: alumet-dev/packaging
           fetch-tags: true
@@ -96,7 +126,7 @@ jobs:
         run: mkdir -p alumet
 
       - name: Checkout alumet repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: alumet-dev/alumet
           path: "alumet"
@@ -130,7 +160,7 @@ jobs:
       # Run lintian with --fail-on error, but that option don't exist on old distribs.
       # Lintian on Debian 11 has incorrect rules: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=992465.
       - name: Check package against Debian rules
-        if: matrix.os != 'debian:11' && matrix.os != 'ubuntu:20.04'
+        if: matrix.os.base-image != 'debian:11' && matrix.os.base-image != 'ubuntu:20.04'
         run: lintian --fail-on error --suppress-tags unstripped-binary-or-object ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
         working-directory: packaging
 
@@ -142,17 +172,14 @@ jobs:
           compression-level: 0 # the package is already compressed
 
   deb-testing:
-    needs: deb-packaging
+    needs: 
+      - setup
+      - deb-packaging
     runs-on: ${{ inputs.arch == 'x86_64' && 'ubuntu-latest' || inputs.arch == 'aarch64' && 'ubuntu-24.04-arm'}}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - { name: "11", base-image: debian:11 }
-          - { name: "12", base-image: debian:12 }
-          - { name: "20.04", base-image: ubuntu:20.04 }
-          - { name: "22.04", base-image: ubuntu:22.04 }
-          - { name: "24.04", base-image: ubuntu:24.04 }
+        os: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       ARCH: ${{ (inputs.arch == 'x86_64') && 'amd64' || 'arm64' }}
 
@@ -167,7 +194,7 @@ jobs:
           apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install nodejs
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: "alumet-dev/packaging"
           fetch-depth: 1
