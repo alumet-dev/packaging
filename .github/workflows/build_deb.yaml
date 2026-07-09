@@ -32,6 +32,7 @@ on:
 
 env:
   ACT: false
+  GOSS_VERSION: v0.4.9
 
 jobs:
   setup:
@@ -216,8 +217,13 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y "$deb_file"
 
       - name: Install Goss
+        env:
+          ARCH: ${{ inputs.arch == 'x86_64' && 'amd64' || inputs.arch == 'aarch64' && 'arm64'}}
         run: |
-          curl -fsSL https://goss.rocks/install | sh
+          curl -L "https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}/goss-linux-${{ env.ARCH }}" -o /usr/local/bin/goss
+          chmod +rx /usr/local/bin/goss
+
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
 
       - name: Run Goss tests
         id: goss-tests
