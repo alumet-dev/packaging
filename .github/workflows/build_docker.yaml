@@ -26,6 +26,12 @@ on:
         required: false
         default: true
 
+      move_latest_tag:
+        description: 'Whether to move the latest tag'
+        type: boolean
+        required: false
+        default: true
+
 env:
   GOSS_VERSION: v0.4.9
 
@@ -50,7 +56,7 @@ jobs:
                 "builder-image":"registry.access.redhat.com/ubi10:10.1",
                 "libssl-version":3,
                 "libcrypto-version":3,
-                "latest_tag":true
+                "latest_tag":"${{ inputs.move_latest_tag }}"
               },
               {
                 "name":"ubi9.6",
@@ -60,7 +66,7 @@ jobs:
                 "builder-image":"registry.access.redhat.com/ubi9:9.6",
                 "libssl-version":3,
                 "libcrypto-version":3,
-                "latest_tag":true
+                "latest_tag":"${{ inputs.move_latest_tag }}"
               },
               {
                 "name":"fc43",
