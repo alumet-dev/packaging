@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.authors="maintainers@alumet.dev" \
 	org.opencontainers.image.title="alumet-agent based on Redhat UBI OS" \
 	org.opencontainers.image.description="Alumet is a modular tool that measures energy consumption and performance metrics. "
 
-ARG ARTIFACT_FILE=alumet-agent-0.8.0-1.ubi.9.5.x86_64.rpm
+ARG ARTIFACT_FILE=alumet-agent-0.8.0-1.ubi9.5.x86_64.rpm
 COPY ${ARTIFACT_FILE} /tmp/
 
 RUN dnf install -y /tmp/$ARTIFACT_FILE && rm -f /tmp/$ARTIFACT_FILE
@@ -39,4 +39,4 @@ USER alumet
 WORKDIR /app
 
 ENTRYPOINT ["/usr/bin/alumet-agent"]
-CMD ["--config", "/etc/alumet/alumet-config.toml", "--plugins", "csv,perf,procfs,socket-control", "--output-file", "/app/alumet-output.csv"]
+CMD ["--config", "/etc/alumet/alumet-config.toml"]
