@@ -11,10 +11,10 @@ LABEL org.opencontainers.image.authors="maintainers@alumet.dev" \
 	org.opencontainers.image.title="alumet-agent based on Ubuntu OS" \
 	org.opencontainers.image.description="Alumet is a modular tool that measures energy consumption and performance metrics. "
 
-ARG ARTIFACT_FILE=alumet-agent_0.8-1_amd64_ubuntu_24.04.deb
+ARG ARTIFACT_FILE=alumet-agent_0.8.0-1_amd64_ubuntu_24.04.deb
 COPY $ARTIFACT_FILE /tmp/
 
-RUN apt update -y && \ 
+RUN apt update -y && \
     apt install -y /tmp/$ARTIFACT_FILE && \
     rm -f /tmp/$ARTIFACT_FILE && \
     rm /usr/bin/alumet-agent && mv /usr/lib/alumet-agent /usr/bin/alumet-agent && \
@@ -30,4 +30,4 @@ USER alumet
 WORKDIR /app
 
 ENTRYPOINT ["/usr/bin/alumet-agent"]
-CMD ["--config", "/etc/alumet/alumet-config.toml", "--plugins", "csv,perf,procfs,socket-control", "--output-file", "/app/alumet-output.csv"]
+CMD ["--config", "/etc/alumet/alumet-config.toml"]

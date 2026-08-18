@@ -30,4 +30,4 @@ USER alumet
 WORKDIR /app
 
 ENTRYPOINT ["/usr/bin/alumet-agent"]
-CMD ["--config", "/etc/alumet/alumet-config.toml", "--plugins", "csv,perf,procfs,socket-control", "--output-file", "/app/alumet-output.csv"]
+CMD ["--config", "/etc/alumet/alumet-config.toml"]
