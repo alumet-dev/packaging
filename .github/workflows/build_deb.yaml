@@ -45,10 +45,6 @@ jobs:
           MATRIX='[]'
           MATRIX=$(jq -c '. += [
             {
-              "name":"11",
-              "base-image":"debian:11"
-            },
-            {
               "name":"12",
               "base-image":"debian:12"
             },
@@ -159,9 +155,8 @@ jobs:
         working-directory: packaging
 
       # Run lintian with --fail-on error, but that option don't exist on old distribs.
-      # Lintian on Debian 11 has incorrect rules: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=992465.
       - name: Check package against Debian rules
-        if: matrix.os.base-image != 'debian:11' && matrix.os.base-image != 'ubuntu:20.04'
+        if: matrix.os.base-image != 'ubuntu:20.04'
         run: lintian --fail-on error --suppress-tags unstripped-binary-or-object ${{ steps.define_package_filename.outputs.PACKAGE_FILENAME }}
         working-directory: packaging
 
