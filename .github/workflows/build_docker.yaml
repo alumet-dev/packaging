@@ -32,6 +32,12 @@ on:
         required: false
         default: true
 
+      packaging-repository:
+        description: "The github 'organization/repository' to use for packaging"
+        required: false
+        type: string
+        default: "alumet-dev/packaging"
+
 env:
   GOSS_VERSION: v0.4.9
 
@@ -123,7 +129,7 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v7
         with:
-          repository: alumet-dev/packaging
+          repository: ${{ inputs.packaging-repository }}
 
       - name: Define the dependency artifact pattern
         run: |
@@ -213,7 +219,7 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v7
         with:
-          repository: alumet-dev/packaging
+          repository: ${{ inputs.packaging-repository }}
 
       - name: Create docker artifacts directory
         run: mkdir docker-artifacts

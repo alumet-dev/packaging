@@ -21,6 +21,17 @@ on:
         required: false
         default: 'main'
 
+      packaging-repository:
+        description: "The github 'organization/repository' to use for packaging"
+        required: false
+        type: string
+        default: "alumet-dev/packaging"
+
+      alumet-repository:
+        description: "The github 'organization/repository' to use for alumet"
+        required: false
+        type: string
+        default: "alumet-dev/alumet"
 jobs:
   rpm:
     uses: ./.github/workflows/build_rpm.yaml
@@ -33,6 +44,8 @@ jobs:
       version: ${{ inputs.version }}
       release-version: ${{ inputs.revision }}
       tag: ${{ inputs.tag }}
+      alumet-repository: ${{ inputs.alumet-repository }}
+      packaging-repository: ${{ inputs.packaging-repository }}
 
   deb:
     uses: ./.github/workflows/build_deb.yaml
@@ -45,6 +58,8 @@ jobs:
       version: ${{ github.event.inputs.version }}
       revision: ${{ github.event.inputs.revision }}
       tag: ${{ inputs.tag }}
+      alumet-repository: ${{ inputs.alumet-repository }}
+      packaging-repository: ${{ inputs.packaging-repository }}
 
   docker:
     uses: ./.github/workflows/build_docker.yaml
@@ -56,6 +71,7 @@ jobs:
       arch: ${{ matrix.arch }}
       version: ${{ inputs.version }}
       release-version: ${{ inputs.revision }}
+      packaging-repository: ${{ inputs.packaging-repository }}
     needs:
       - rpm
       - deb
