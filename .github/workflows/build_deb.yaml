@@ -30,6 +30,19 @@ on:
         type: string
         default: "1.89"
 
+      packaging-repository:
+        description: "The github 'organization/repository' to use for packaging"
+        required: false
+        type: string
+        default: "alumet-dev/packaging"
+
+      alumet-repository:
+        description: "The github 'organization/repository' to use for alumet"
+        required: false
+        type: string
+        default: "alumet-dev/alumet"
+
+
 env:
   ACT: false
   GOSS_VERSION: v0.4.9
@@ -102,7 +115,7 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          repository: alumet-dev/packaging
+          repository: ${{ inputs.packaging-repository }}
           fetch-tags: true
           path: packaging
 
@@ -125,7 +138,7 @@ jobs:
       - name: Checkout alumet repo
         uses: actions/checkout@v7
         with:
-          repository: alumet-dev/alumet
+          repository: ${{ inputs.alumet-repository }}
           path: "alumet"
           ref: "${{ inputs.tag }}"
           fetch-depth: 1
@@ -192,7 +205,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          repository: "alumet-dev/packaging"
+          repository: "${{ inputs.packaging-repository }}"
           fetch-depth: 1
           path: "packaging"
 
